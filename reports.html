@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExpenseFlow (Concept) - Reports</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+
+<div class="banner"><b>INTERACTIVE CONCEPT</b> - A working sample built for this proposal. Sample data only, stored in your browser. Not the final product.</div>
+
+<header class="top">
+  <a class="logo" href="index.html"><span class="mark">E</span> ExpenseFlow <span class="tagc">(Concept)</span></a>
+  <nav class="nav" aria-label="Main">
+    <a href="index.html" data-page="dashboard">Dashboard<span class="dot"></span></a>
+    <a href="submit.html" data-page="submit">Submit<span class="dot"></span></a>
+    <a href="review.html" data-page="review">Review<span class="dot"></span></a>
+    <a href="reports.html" data-page="reports">Reports<span class="dot"></span></a>
+  </nav>
+  <div class="right">
+    <div class="roleswitch" role="group" aria-label="Demo role">
+      <button type="button" data-role="employee">Employee</button>
+      <button type="button" data-role="admin">Finance Admin</button>
+    </div>
+    <span class="who" title="Jordan Reyes (demo user)">JR</span>
+  </div>
+</header>
+
+<main class="wrap view-in">
+  <div class="pagehead">
+    <h1>Reports</h1>
+    <p class="lede">Finance tracking over the sample data. Pick a month, read the category breakdown, and export a real CSV built from the live data in your browser.</p>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="rep">
+      <label for="monthSel">Month
+        <select class="inp" id="monthSel"></select>
+      </label>
+      <span class="g" id="repSummary"></span>
+      <span class="grow"></span>
+      <button type="button" class="expbtn" id="csvBtn"><span class="ic">CSV</span> Export CSV</button>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="hd"><h2>Spend by category</h2><span class="count" id="catCount"></span></div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Category</th><th>Items</th><th>Approved</th><th>Awaiting</th><th>Total</th></tr>
+          </thead>
+          <tbody id="catBody"></tbody>
+          <tfoot id="catFoot"></tfoot>
+        </table>
+      </div>
+      <div class="note">Rejected expenses are excluded from these totals. Awaiting covers pending and info-requested items.</div>
+    </div>
+    <div class="card">
+      <div class="hd"><h2>Monthly trend</h2><span class="count">last 3 months, rejected excluded</span></div>
+      <div class="chartbox" id="trend"></div>
+      <div class="note">The trend always shows the last three months so the selected month stays in context.</div>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">ExpenseFlow (Concept) &middot; Acme Field Services sample data, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
+
+<script src="shared/app.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ExpenseApp;
+  if (!A) return;
+  A.initChrome('reports');
+
+  var months = A.lastMonths(3); /* oldest first */
+  var sel = months[months.length - 1]; /* default: current month */
+
+  /* --- month selector --- */
+  var monthSel = document.getElementById('monthSel');
+  if (monthSel) {
+    var opts = '<option value="all">All months</option>';
+    months.slice().reverse().forEach(function (key) {
+      opts += '<option value="' + key + '">' + A.monthLabel(key) + '</option>';
+    });
+    monthSel.innerHTML = opts;
+    monthSel.value = sel;
+    monthSel.addEventListener('change', function () {
+      sel = monthSel.value;
+      render();
+    });
+  }
+
+  function inSelection(e) {
+    if (sel === 'all') return true;
+    return A.monthKey(e.date) === sel;
+  }
+
+  function selectionLabel() {
+    return sel === 'all' ? 'all months' : A.monthLabel(sel);
+  }
+
+  /* --- category table --- */
+  function render() {
+    var ex = A.getState().expenses.filter(inSelection);
+    var live = ex.filter(function (e) { return e.status !== 'rejected'; });
+
+    /* summary pill */
+    var total = 0;
+    live.forEach(function (e) { total += e.amount; });
+    var summary = document.getElementById('repSummary');
+    if (summary) {
+      summary.textContent = selectionLabel() + ': ' + live.length + ' expense' + (live.length === 1 ? '' : 's') + ', ' + A.fmtMoney(total) + ' total';
+    }
+
+    var body = document.getElementById('catBody');
+    var foot = document.getElementById('catFoot');
+    var count = document.getElementById('catCount');
+    if (count) count.textContent = selectionLabel();
+
+    if (body) {
+      if (!live.length) {
+        body.innerHTML = '<tr><td colspan="5"><div class="empty"><div class="big">No expenses in ' + A.esc(selectionLabel()) + '</div>Submit one and it will show up here.</div></td></tr>';
+        if (foot) foot.innerHTML = '';
+      } else {
+        var rows = '';
+        var tItems = 0, tAppr = 0, tWait = 0, tAll = 0;
+        A.CATEGORIES.forEach(function (cat) {
+          var items = 0, appr = 0, wait = 0;
+          live.forEach(function (e) {
+            if (e.category !== cat) return;
+            items++;
+            if (e.status === 'approved') appr += e.amount;
+            else wait += e.amount;
+          });
+          if (!items) return;
+          var catTotal = appr + wait;
+          tItems += items; tAppr += appr; tWait += wait; tAll += catTotal;
+          rows += '<tr><td class="who2">' + A.esc(cat) + '</td>' +
+            '<td>' + items + '</td>' +
+            '<td>' + A.fmtMoney(appr) + '</td>' +
+            '<td>' + A.fmtMoney(wait) + '</td>' +
+            '<td class="amtc">' + A.fmtMoney(catTotal) + '</td></tr>';
+        });
+        body.innerHTML = rows;
+        if (foot) {
+          foot.innerHTML = '<tr><td>Total</td><td>' + tItems + '</td>' +
+            '<td>' + A.fmtMoney(tAppr) + '</td>' +
+            '<td>' + A.fmtMoney(tWait) + '</td>' +
+            '<td>' + A.fmtMoney(tAll) + '</td></tr>';
+        }
+      }
+    }
+
+    /* --- monthly trend chart (always last 3 months) --- */
+    var all = A.getState().expenses;
+    var bars = months.map(function (key) {
+      var v = 0;
+      all.forEach(function (e) {
+        if (A.monthKey(e.date) === key && e.status !== 'rejected') v += e.amount;
+      });
+      return { label: A.monthShort(key), value: v };
+    });
+    A.renderBarChart(document.getElementById('trend'), bars);
+  }
+
+  /* --- CSV export --- */
+  var csvBtn = document.getElementById('csvBtn');
+  if (csvBtn) {
+    csvBtn.addEventListener('click', function () {
+      var ex = A.getState().expenses.filter(inSelection).sort(function (a, b) {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return a.num - b.num;
+      });
+      var rows = [['Expense #', 'Date', 'Employee', 'Category', 'Merchant', 'Description', 'Amount (USD)', 'Status', 'Submitted', 'Decided']];
+      ex.forEach(function (e) {
+        rows.push([
+          e.num, e.date, e.employee, e.category, e.merchant, e.description,
+          e.amount.toFixed(2),
+          (A.STATUS_META[e.status] || {}).label || e.status,
+          e.createdAt, e.decidedAt || ''
+        ]);
+      });
+      var name = 'expenseflow-sample-' + (sel === 'all' ? 'all-months' : sel) + '.csv';
+      A.exportCsv(rows, name);
+      A.showToast('Exported ' + ex.length + ' expenses to ' + name + '.');
+    });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

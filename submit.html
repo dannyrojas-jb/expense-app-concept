@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExpenseFlow (Concept) - Submit an expense</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+
+<div class="banner"><b>INTERACTIVE CONCEPT</b> - A working sample built for this proposal. Sample data only, stored in your browser. Not the final product.</div>
+
+<header class="top">
+  <a class="logo" href="index.html"><span class="mark">E</span> ExpenseFlow <span class="tagc">(Concept)</span></a>
+  <nav class="nav" aria-label="Main">
+    <a href="index.html" data-page="dashboard">Dashboard<span class="dot"></span></a>
+    <a href="submit.html" data-page="submit">Submit<span class="dot"></span></a>
+    <a href="review.html" data-page="review">Review<span class="dot"></span></a>
+    <a href="reports.html" data-page="reports">Reports<span class="dot"></span></a>
+  </nav>
+  <div class="right">
+    <div class="roleswitch" role="group" aria-label="Demo role">
+      <button type="button" data-role="employee">Employee</button>
+      <button type="button" data-role="admin">Finance Admin</button>
+    </div>
+    <span class="who" title="Jordan Reyes (demo user)">JR</span>
+  </div>
+</header>
+
+<main class="wrap view-in">
+  <div class="pagehead">
+    <h1>Submit an expense</h1>
+    <p class="lede">File an expense in under a minute. It lands in the finance review queue as Pending, and you can watch its status change from this page. You are submitting as Jordan Reyes, the demo user.</p>
+  </div>
+
+  <div class="cols">
+    <form class="card" id="expForm" novalidate>
+      <div class="hd"><h2>New expense</h2></div>
+      <div class="form">
+        <div class="field">
+          <label for="fAmount">Amount (USD)</label>
+          <input class="inp big" id="fAmount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.00">
+          <div class="err" id="errAmount"></div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="fDate">Date</label>
+            <input class="inp" id="fDate" name="date" type="date">
+            <div class="err" id="errDate"></div>
+          </div>
+          <div class="field">
+            <label for="fCategory">Category</label>
+            <select class="inp" id="fCategory" name="category">
+              <option value="" selected>Select a category...</option>
+            </select>
+            <div class="err" id="errCategory"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fMerchant">Merchant</label>
+          <input class="inp" id="fMerchant" name="merchant" autocomplete="off" placeholder="Where was this spent?">
+          <div class="err" id="errMerchant"></div>
+        </div>
+        <div class="field">
+          <label for="fDesc">Description <span style="text-transform:none;font-weight:500;">(optional)</span></label>
+          <textarea class="inp" id="fDesc" name="description" rows="2" placeholder="What was this for?"></textarea>
+        </div>
+        <div class="field">
+          <label>Receipt</label>
+          <div class="up" id="upZone">
+            <div id="attachEmpty">
+              <button type="button" class="attachbtn" id="attachBtn">Attach receipt (sample)</button>
+              <div class="hint">Demo only. A sample filename is attached, nothing leaves your browser.</div>
+            </div>
+            <div id="attachChip" style="display:none;"></div>
+          </div>
+        </div>
+        <button type="submit" class="submit">Submit expense</button>
+      </div>
+    </form>
+
+    <div class="card side">
+      <div class="hd"><h2>My submissions</h2><span class="count" id="mineCount"></span></div>
+      <div id="mineList"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">ExpenseFlow (Concept) &middot; Acme Field Services sample data, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
+
+<script src="shared/app.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ExpenseApp;
+  if (!A) return;
+  A.initChrome('submit');
+
+  var form = document.getElementById('expForm');
+  var fAmount = document.getElementById('fAmount');
+  var fDate = document.getElementById('fDate');
+  var fCategory = document.getElementById('fCategory');
+  var fMerchant = document.getElementById('fMerchant');
+  var fDesc = document.getElementById('fDesc');
+  var attachBtn = document.getElementById('attachBtn');
+  var attachEmpty = document.getElementById('attachEmpty');
+  var attachChip = document.getElementById('attachChip');
+
+  var receiptName = null;
+
+  /* populate categories */
+  if (fCategory) {
+    A.CATEGORIES.forEach(function (c) {
+      var o = document.createElement('option');
+      o.value = c;
+      o.textContent = c;
+      fCategory.appendChild(o);
+    });
+  }
+
+  /* default date = today */
+  if (fDate) fDate.value = A.todayIso();
+
+  /* --- fake receipt attach --- */
+  function renderAttach() {
+    if (!attachEmpty || !attachChip) return;
+    if (receiptName) {
+      attachEmpty.style.display = 'none';
+      attachChip.style.display = 'block';
+      attachChip.innerHTML = '<span class="chip"><span class="x">PDF</span>' + A.esc(receiptName) +
+        '<button type="button" class="rm" id="rmReceipt" aria-label="Remove receipt">&times;</button></span>';
+      var rm = document.getElementById('rmReceipt');
+      if (rm) rm.addEventListener('click', function () { receiptName = null; renderAttach(); });
+    } else {
+      attachEmpty.style.display = 'block';
+      attachChip.style.display = 'none';
+      attachChip.innerHTML = '';
+    }
+  }
+  if (attachBtn) {
+    attachBtn.addEventListener('click', function () {
+      receiptName = 'receipt-' + (1000 + Math.floor(Math.random() * 9000)) + '.pdf';
+      renderAttach();
+    });
+  }
+
+  /* --- validation --- */
+  function setErr(input, errId, msg) {
+    var el = document.getElementById(errId);
+    if (el) {
+      el.textContent = msg || '';
+      el.classList.toggle('show', !!msg);
+    }
+    if (input) input.classList.toggle('bad', !!msg);
+    return !msg;
+  }
+
+  function parseAmount(v) {
+    var n = parseFloat(String(v || '').replace(/[$,\s]/g, ''));
+    return isFinite(n) ? n : NaN;
+  }
+
+  function validateAmount() {
+    var n = parseAmount(fAmount ? fAmount.value : '');
+    if (isNaN(n)) return setErr(fAmount, 'errAmount', 'Enter an amount, like 42.50.');
+    if (n <= 0) return setErr(fAmount, 'errAmount', 'Amount must be greater than zero.');
+    if (n > 25000) return setErr(fAmount, 'errAmount', 'Amounts over $25,000 need a purchase order, not an expense.');
+    return setErr(fAmount, 'errAmount', '');
+  }
+
+  function validateDate() {
+    var v = fDate ? fDate.value : '';
+    if (!v) return setErr(fDate, 'errDate', 'Pick the date of the expense.');
+    if (v > A.todayIso()) return setErr(fDate, 'errDate', 'Date cannot be in the future.');
+    return setErr(fDate, 'errDate', '');
+  }
+
+  function validateCategory() {
+    var v = fCategory ? fCategory.value : '';
+    if (!v) return setErr(fCategory, 'errCategory', 'Choose a category.');
+    return setErr(fCategory, 'errCategory', '');
+  }
+
+  function validateMerchant() {
+    var v = fMerchant ? fMerchant.value.trim() : '';
+    if (!v) return setErr(fMerchant, 'errMerchant', 'Enter the merchant name.');
+    return setErr(fMerchant, 'errMerchant', '');
+  }
+
+  /* clear errors as the user fixes them */
+  if (fAmount) fAmount.addEventListener('input', function () { if (fAmount.classList.contains('bad')) validateAmount(); });
+  if (fDate) fDate.addEventListener('change', function () { if (fDate.classList.contains('bad')) validateDate(); });
+  if (fCategory) fCategory.addEventListener('change', function () { if (fCategory.classList.contains('bad')) validateCategory(); });
+  if (fMerchant) fMerchant.addEventListener('input', function () { if (fMerchant.classList.contains('bad')) validateMerchant(); });
+
+  /* --- submit --- */
+  if (form) {
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var ok = validateAmount();
+      ok = validateDate() && ok;
+      ok = validateCategory() && ok;
+      ok = validateMerchant() && ok;
+      if (!ok) return;
+
+      var e = A.addExpense({
+        amount: parseAmount(fAmount.value),
+        date: fDate.value,
+        category: fCategory.value,
+        merchant: fMerchant.value.trim(),
+        description: fDesc ? fDesc.value.trim() : '',
+        receipt: receiptName
+      });
+
+      /* reset form */
+      fAmount.value = '';
+      fDate.value = A.todayIso();
+      fCategory.value = '';
+      fMerchant.value = '';
+      if (fDesc) fDesc.value = '';
+      receiptName = null;
+      renderAttach();
+
+      renderMine();
+      A.showToast('Expense #' + e.num + ' submitted. Status: Pending.');
+    });
+  }
+
+  /* --- my submissions list --- */
+  function renderMine() {
+    var host = document.getElementById('mineList');
+    var count = document.getElementById('mineCount');
+    if (!host) return;
+
+    var mine = A.getState().expenses
+      .filter(function (e) { return e.employee === A.CURRENT_USER; })
+      .sort(function (a, b) {
+        if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+        return b.num - a.num;
+      });
+
+    if (count) count.textContent = mine.length + ' total';
+
+    if (!mine.length) {
+      host.innerHTML = '<div class="empty"><div class="big">Nothing submitted yet</div>Your expenses will appear here with a live status.</div>';
+      return;
+    }
+
+    host.innerHTML = mine.map(function (e) {
+      var st = A.STATUS_META[e.status] || A.STATUS_META.pending;
+      return '<div class="mine">' +
+        '<span class="amt">' + A.fmtMoney(e.amount) + '</span>' +
+        '<div class="m2"><div class="nm">' + A.esc(e.merchant) + '</div>' +
+        '<div class="p">' + A.fmtDate(e.date) + ' &middot; ' + A.esc(e.category) + '</div></div>' +
+        '<span class="st ' + st.cls + '">' + st.label + '</span></div>';
+    }).join('');
+  }
+
+  renderMine();
+})();
+</script>
+</body>
+</html>

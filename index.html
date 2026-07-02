@@ -3,307 +3,210 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Expense App - Concept (Submit / Review / Track)</title>
+<title>ExpenseFlow (Concept) - Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#0f172a;--panel:#ffffff;--app:#f1f5f9;--line:#e2e8f0;
-    --ink:#0f172a;--ink2:#475569;--ink3:#94a3b8;
-    --accent:#0891b2;--accent-d:#0e7490;--accent-soft:#ecfeff;
-    --ok:#059669;--ok-bg:#ecfdf5;
-    --warn:#ca8a04;--warn-bg:#fefce8;
-    --crit:#dc2626;--crit-bg:#fef2f2;
-    --pending:#0891b2;--pending-bg:#ecfeff;
-    --font:'Inter',system-ui,Segoe UI,sans-serif;
-  }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:var(--font);background:var(--app);color:var(--ink);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;}
-  a{color:inherit;text-decoration:none;}
-
-  /* concept banner */
-  .banner{background:var(--bg);color:#cbd5e1;font-size:12.5px;letter-spacing:.02em;text-align:center;padding:9px 16px;}
-  .banner b{color:#fff;}
-  .banner .pill{display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:5px;margin-right:8px;vertical-align:1px;}
-
-  /* top bar */
-  .top{display:flex;align-items:center;gap:14px;background:var(--bg);color:#e2e8f0;padding:14px 22px;border-bottom:1px solid #1e293b;}
-  .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px;color:#fff;letter-spacing:-.2px;}
-  .logo .mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#67e8f9);display:grid;place-items:center;color:#06232b;font-size:15px;font-weight:800;}
-  .top .ctx{margin-left:6px;padding-left:14px;border-left:1px solid #334155;color:#94a3b8;font-size:13px;}
-  .top .ctx b{color:#e2e8f0;font-weight:600;}
-  .top .right{margin-left:auto;display:flex;align-items:center;gap:14px;color:#94a3b8;font-size:12.5px;}
-  .top .role{background:#1e293b;border:1px solid #334155;border-radius:999px;padding:5px 12px;color:#cbd5e1;font-weight:600;}
-  .top .who{width:30px;height:30px;border-radius:50%;background:#334155;display:grid;place-items:center;color:#e2e8f0;font-weight:700;font-size:12px;}
-
-  /* view tabs */
-  .tabs{display:flex;gap:4px;background:#fff;border-bottom:1px solid var(--line);padding:0 22px;position:sticky;top:0;z-index:20;}
-  .tab{padding:15px 18px;font-weight:600;font-size:14px;color:var(--ink3);cursor:pointer;border-bottom:2.5px solid transparent;transition:.15s;display:flex;align-items:center;gap:8px;}
-  .tab:hover{color:var(--ink2);}
-  .tab.on{color:var(--accent-d);border-bottom-color:var(--accent);}
-  .tab .num{width:20px;height:20px;border-radius:50%;background:var(--app);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--ink3);}
-  .tab.on .num{background:var(--accent);color:#fff;}
-
-  .wrap{max-width:1180px;margin:0 auto;padding:24px 22px 40px;}
-  .view{display:none;}
-  .view.on{display:block;animation:fade .25s ease;}
-  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
-
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.04);}
-  .card .hd{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;}
-  .card .hd h2{font-size:13px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ink2);}
-  .card .hd .count{margin-left:auto;font-size:12px;font-weight:600;color:var(--ink3);}
-  .flow{color:var(--ink2);font-size:13.5px;margin:0 0 20px;padding:12px 16px;background:var(--accent-soft);border:1px solid #cffafe;border-radius:10px;}
-  .flow b{color:var(--accent-d);}
-
-  /* ===== Submit view ===== */
-  .cols{display:grid;grid-template-columns:1.15fr .85fr;gap:20px;}
-  @media(max-width:860px){.cols{grid-template-columns:1fr;}}
-  .form{padding:20px;}
-  .field{margin-bottom:16px;}
-  .field label{display:block;font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px;}
-  .field .inp{width:100%;border:1px solid var(--line);border-radius:9px;padding:11px 13px;font:inherit;font-size:14px;color:var(--ink);background:#f8fafc;}
-  .field .inp.big{font-size:20px;font-weight:700;color:var(--accent-d);}
-  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  .up{border:1.5px dashed #cbd5e1;border-radius:10px;padding:20px;text-align:center;color:var(--ink3);font-size:12.5px;background:#f8fafc;}
-  .up b{color:var(--accent);}
-  .up .rc{margin-top:10px;display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 11px;color:var(--ink2);font-weight:600;font-size:12px;}
-  .up .rc .x{width:22px;height:22px;border-radius:5px;background:var(--crit);color:#fff;display:grid;place-items:center;font-size:9px;font-weight:800;}
-  .submit{width:100%;margin-top:4px;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:13px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;transition:.15s;}
-  .submit:hover{background:var(--accent-d);}
-  .side h3{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px;}
-  .side .sub{font-size:12.5px;color:var(--ink3);margin-bottom:14px;}
-  .mine{padding:13px 16px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:12px;}
-  .mine:first-of-type{border-top:0;}
-  .mine .amt{font-weight:700;font-size:14px;}
-  .mine .m2{flex:1;min-width:0;}
-  .mine .m2 .p{font-size:12px;color:var(--ink3);}
-
-  /* status pills */
-  .st{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:3px 9px;border-radius:6px;white-space:nowrap;}
-  .st.approved{background:var(--ok-bg);color:var(--ok);}
-  .st.pending{background:var(--pending-bg);color:var(--pending);}
-  .st.query{background:var(--warn-bg);color:var(--warn);}
-  .st.rejected{background:var(--crit-bg);color:var(--crit);}
-
-  /* ===== Review view ===== */
-  .rgrid{display:grid;grid-template-columns:1fr 400px;gap:20px;}
-  @media(max-width:920px){.rgrid{grid-template-columns:1fr;}}
-  table{width:100%;border-collapse:collapse;}
-  thead th{text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);padding:12px 18px;border-bottom:1px solid var(--line);background:#f8fafc;}
-  tbody td{padding:13px 18px;border-bottom:1px solid #f1f5f9;vertical-align:middle;font-size:13px;}
-  tbody tr{cursor:pointer;transition:background .12s;}
-  tbody tr:hover{background:#f8fafc;}
-  tbody tr.sel{background:var(--accent-soft);}
-  .amtc{font-weight:700;color:var(--ink);}
-  .who2{font-weight:600;}
-  .who2 .p{font-size:11.5px;color:var(--ink3);font-weight:500;}
-
-  /* dialogue panel */
-  .thread{display:flex;flex-direction:column;}
-  .thread .hd{justify-content:space-between;}
-  .exp{padding:16px 18px;border-bottom:1px solid var(--line);background:#f8fafc;}
-  .exp .big{font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-.5px;}
-  .exp .meta{font-size:12.5px;color:var(--ink2);margin-top:4px;}
-  .exp .meta b{color:var(--ink);}
-  .msgs{padding:16px 18px;display:flex;flex-direction:column;gap:12px;max-height:280px;overflow:auto;}
-  .msg{max-width:85%;}
-  .msg .bub{padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.5;}
-  .msg .lbl{font-size:10.5px;color:var(--ink3);font-weight:600;margin:4px 2px 0;}
-  .msg.admin{align-self:flex-end;align-items:flex-end;display:flex;flex-direction:column;}
-  .msg.admin .bub{background:var(--accent);color:#fff;border-bottom-right-radius:3px;}
-  .msg.user .bub{background:#f1f5f9;color:var(--ink);border-bottom-left-radius:3px;}
-  .replybar{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:9px;align-items:center;}
-  .replybar .inp{flex:1;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:13px;background:#f8fafc;color:var(--ink3);}
-  .actbar{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--line);}
-  .abtn{flex:1;border:0;border-radius:9px;padding:10px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;transition:.15s;}
-  .abtn.ok{background:var(--ok-bg);color:var(--ok);}
-  .abtn.ok:hover{background:#d1fae5;}
-  .abtn.q{background:var(--warn-bg);color:var(--warn);}
-  .abtn.q:hover{background:#fef9c3;}
-  .abtn.no{background:var(--crit-bg);color:var(--crit);}
-  .abtn.no:hover{background:#fee2e2;}
-
-  /* ===== Track view ===== */
-  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
-  @media(max-width:640px){.tiles{grid-template-columns:repeat(2,1fr);}}
-  .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
-  .tile .n{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1;color:var(--accent-d);}
-  .tile .l{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink3);margin-top:6px;}
-  .tile.ok .n{color:var(--ok);}.tile.warn .n{color:var(--warn);}
-  .proj{padding:16px 20px;border-top:1px solid #f1f5f9;}
-  .proj:first-of-type{border-top:0;}
-  .proj .row{display:flex;align-items:center;gap:12px;margin-bottom:9px;}
-  .proj .nm{font-weight:700;font-size:14px;}
-  .proj .sp{margin-left:auto;font-weight:700;color:var(--ink);}
-  .proj .of{color:var(--ink3);font-weight:500;font-size:12.5px;}
-  .bar{height:9px;border-radius:6px;background:#f1f5f9;overflow:hidden;}
-  .bar > i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent),#22d3ee);}
-  .bar > i.hot{background:linear-gradient(90deg,var(--warn),#f59e0b);}
-  .rep{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 20px;}
-  .rep .g{border:1px solid var(--line);border-radius:9px;padding:8px 12px;font-size:12.5px;color:var(--ink2);font-weight:600;background:#f8fafc;}
-  .rep .exp2{margin-left:auto;display:flex;gap:9px;}
-  .expbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:9px;padding:9px 14px;font-weight:700;font-size:12.5px;cursor:pointer;background:#fff;color:var(--ink2);transition:.15s;}
-  .expbtn:hover{border-color:var(--accent);color:var(--accent-d);}
-  .expbtn .ic{width:22px;height:22px;border-radius:5px;display:grid;place-items:center;font-size:9px;font-weight:800;color:#fff;}
-  .expbtn .ic.pdf{background:var(--crit);}.expbtn .ic.xls{background:var(--ok);}
-
-  .foot{max-width:1180px;margin:0 auto;padding:22px;color:var(--ink3);font-size:12px;border-top:1px solid var(--line);}
-  .foot b{color:var(--ink2);}
-</style>
+<link rel="stylesheet" href="shared/styles.css">
 </head>
 <body>
 
-<div class="banner"><span class="pill">Concept</span> <b>Sample concept built by TruePulse OS for this posting.</b> Brand-neutral placeholder styling and sample data - a pre-attachment concept, to be rebuilt to match your attached process + interface mock-ups. Nothing here is a live product.</div>
+<div class="banner"><b>INTERACTIVE CONCEPT</b> - A working sample built for this proposal. Sample data only, stored in your browser. Not the final product.</div>
 
-<div class="top">
-  <div class="logo"><span class="mark">E</span> ExpenseFlow <span style="font-weight:500;color:#64748b;font-size:12px;">concept</span></div>
-  <div class="ctx">Organization: <b>Sample Org</b> · connected to <b>Google Drive</b> &amp; <b>QuickBooks</b></div>
-  <div class="right"><span class="role">Admin view</span><span class="who">AR</span></div>
-</div>
-
-<div class="tabs">
-  <div class="tab on" data-v="submit"><span class="num">1</span> Submit</div>
-  <div class="tab" data-v="review"><span class="num">2</span> Review &amp; dialogue</div>
-  <div class="tab" data-v="track"><span class="num">3</span> Track &amp; report</div>
-</div>
-
-<div class="wrap">
-
-  <!-- ===================== SUBMIT ===================== -->
-  <div class="view on" id="submit">
-    <div class="flow"><b>Interface 1 - Submit.</b> A team member files an expense in under a minute. The record and its receipt are written straight into the organization's Google Drive, then flow to the admin review queue.</div>
-    <div class="cols">
-      <div class="card">
-        <div class="hd"><h2>New expense</h2></div>
-        <div class="form">
-          <div class="field"><label>Amount</label><input class="inp big" value="$248.60" readonly></div>
-          <div class="row2">
-            <div class="field"><label>Project</label><input class="inp" value="Riverside Field Study" readonly></div>
-            <div class="field"><label>Category</label><input class="inp" value="Travel - Lodging" readonly></div>
-          </div>
-          <div class="row2">
-            <div class="field"><label>Date</label><input class="inp" value="Jun 28, 2026" readonly></div>
-            <div class="field"><label>Payment method</label><input class="inp" value="Personal card" readonly></div>
-          </div>
-          <div class="field"><label>Notes</label><input class="inp" value="Two nights, on-site data collection trip" readonly></div>
-          <div class="field"><label>Receipt</label>
-            <div class="up">Drag a receipt here, or <b>browse</b> - stored in Google Drive
-              <div class="rc"><span class="x">PDF</span> lodging-receipt-jun28.pdf</div>
-            </div>
-          </div>
-          <button class="submit">Submit expense</button>
-        </div>
-      </div>
-      <div class="card side" style="padding:0;">
-        <div class="hd"><h2>My recent submissions</h2></div>
-        <div style="padding:16px 16px 4px;"><h3>Where your expenses stand</h3><div class="sub">Every submission shows its live status, so no one has to chase finance for an update.</div></div>
-        <div class="mine"><span class="amt">$248.60</span><div class="m2"><div>Riverside Field Study</div><div class="p">Submitted just now</div></div><span class="st pending">Pending</span></div>
-        <div class="mine"><span class="amt">$1,120.00</span><div class="m2"><div>Riverside Field Study</div><div class="p">Jun 24 · flights</div></div><span class="st query">Query</span></div>
-        <div class="mine"><span class="amt">$64.10</span><div class="m2"><div>Grant Reporting - Q2</div><div class="p">Jun 22 · supplies</div></div><span class="st approved">Approved</span></div>
-        <div class="mine"><span class="amt">$390.00</span><div class="m2"><div>Grant Reporting - Q2</div><div class="p">Jun 20 · software</div></div><span class="st approved">Approved</span></div>
-      </div>
+<header class="top">
+  <a class="logo" href="index.html"><span class="mark">E</span> ExpenseFlow <span class="tagc">(Concept)</span></a>
+  <nav class="nav" aria-label="Main">
+    <a href="index.html" data-page="dashboard">Dashboard<span class="dot"></span></a>
+    <a href="submit.html" data-page="submit">Submit<span class="dot"></span></a>
+    <a href="review.html" data-page="review">Review<span class="dot"></span></a>
+    <a href="reports.html" data-page="reports">Reports<span class="dot"></span></a>
+  </nav>
+  <div class="right">
+    <div class="roleswitch" role="group" aria-label="Demo role">
+      <button type="button" data-role="employee">Employee</button>
+      <button type="button" data-role="admin">Finance Admin</button>
     </div>
+    <span class="who" title="Jordan Reyes (demo user)">JR</span>
+  </div>
+</header>
+
+<main class="wrap view-in">
+  <div class="pagehead">
+    <h1>Dashboard</h1>
+    <p class="lede">A live picture of company spend. Every number on this page is computed from the sample expenses in your browser, so anything you submit or approve shows up here immediately.</p>
   </div>
 
-  <!-- ===================== REVIEW ===================== -->
-  <div class="view" id="review">
-    <div class="flow"><b>Interface 2 - Review &amp; dialogue.</b> Admin works a queue of submissions - approve, reject, or open a question. The back-and-forth stays on the expense itself, so there is no separate email chain and every decision has a trail.</div>
-    <div class="rgrid">
-      <div class="card">
-        <div class="hd"><h2>Review queue</h2><span class="count">4 awaiting action</span></div>
-        <table>
-          <thead><tr><th>Submitter</th><th>Project</th><th>Amount</th><th>Status</th></tr></thead>
-          <tbody>
-            <tr class="sel"><td class="who2">M. Okafor<span class="p">Jun 24</span></td><td>Riverside Field Study</td><td class="amtc">$1,120.00</td><td><span class="st query">Query</span></td></tr>
-            <tr><td class="who2">J. Reyes<span class="p">just now</span></td><td>Riverside Field Study</td><td class="amtc">$248.60</td><td><span class="st pending">Pending</span></td></tr>
-            <tr><td class="who2">S. Patel<span class="p">Jun 27</span></td><td>Grant Reporting - Q2</td><td class="amtc">$512.00</td><td><span class="st pending">Pending</span></td></tr>
-            <tr><td class="who2">L. Chen<span class="p">Jun 26</span></td><td>Outreach - Coastal</td><td class="amtc">$88.40</td><td><span class="st pending">Pending</span></td></tr>
-            <tr><td class="who2">M. Okafor<span class="p">Jun 22</span></td><td>Grant Reporting - Q2</td><td class="amtc">$64.10</td><td><span class="st approved">Approved</span></td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="card thread">
-        <div class="hd"><h2>Expense #4471</h2><span class="st query">Query open</span></div>
-        <div class="exp">
-          <div class="big">$1,120.00</div>
-          <div class="meta"><b>M. Okafor</b> · Riverside Field Study · Travel - Flights · Jun 24, 2026</div>
-        </div>
-        <div class="msgs">
-          <div class="msg admin"><div class="bub">Hi Michael - can you confirm this was economy fare? The amount is above the usual range for this route.</div><div class="lbl">You (Admin) · Jun 25</div></div>
-          <div class="msg user"><div class="bub">Yes, economy - it was a last-minute booking after the site date moved. Receipt attached shows the fare class.</div><div class="lbl">M. Okafor · Jun 25</div></div>
-          <div class="msg admin"><div class="bub">Got it, thanks. That works with the schedule change on file.</div><div class="lbl">You (Admin) · Jun 25</div></div>
-        </div>
-        <div class="replybar"><span class="inp">Write a reply...</span></div>
-        <div class="actbar">
-          <button class="abtn ok">Approve</button>
-          <button class="abtn q">Ask a question</button>
-          <button class="abtn no">Reject</button>
-        </div>
-      </div>
+  <section class="tiles" aria-label="Key metrics">
+    <div class="tile">
+      <div class="n" id="kpiSpend">--</div>
+      <div class="l">Spend this month</div>
+      <div class="s" id="kpiSpendSub"></div>
     </div>
-  </div>
+    <div class="tile warn">
+      <div class="n" id="kpiPending">--</div>
+      <div class="l">Pending approvals</div>
+      <div class="s" id="kpiPendingSub"></div>
+    </div>
+    <div class="tile ok">
+      <div class="n" id="kpiApproved">--</div>
+      <div class="l">Approved this month</div>
+      <div class="s" id="kpiApprovedSub"></div>
+    </div>
+    <div class="tile">
+      <div class="n" id="kpiAvg">--</div>
+      <div class="l">Avg processing time</div>
+      <div class="s" id="kpiAvgSub"></div>
+    </div>
+  </section>
 
-  <!-- ===================== TRACK ===================== -->
-  <div class="view" id="track">
-    <div class="flow"><b>Interface 3 - Track &amp; report.</b> Approved expenses roll up into per-project summaries anyone can view, and admin builds and exports a clean report in a couple of clicks. Approved items are what sync to QuickBooks.</div>
-    <div class="tiles">
-      <div class="tile"><div class="n">$18,940</div><div class="l">Total expenses YTD</div></div>
-      <div class="tile ok"><div class="n">$16,120</div><div class="l">Approved</div></div>
-      <div class="tile warn"><div class="n">$1,368</div><div class="l">Pending / in query</div></div>
-      <div class="tile"><div class="n">3</div><div class="l">Active projects</div></div>
-    </div>
-    <div class="card" style="margin-bottom:20px;">
-      <div class="hd"><h2>Expenses by project</h2><span class="count">vs. budget</span></div>
-      <div class="proj">
-        <div class="row"><span class="nm">Riverside Field Study</span><span class="sp">$9,240 <span class="of">/ $12,000</span></span></div>
-        <div class="bar"><i style="width:77%"></i></div>
-      </div>
-      <div class="proj">
-        <div class="row"><span class="nm">Grant Reporting - Q2</span><span class="sp">$6,480 <span class="of">/ $7,000</span></span></div>
-        <div class="bar"><i class="hot" style="width:93%"></i></div>
-      </div>
-      <div class="proj">
-        <div class="row"><span class="nm">Outreach - Coastal</span><span class="sp">$3,220 <span class="of">/ $9,000</span></span></div>
-        <div class="bar"><i style="width:36%"></i></div>
-      </div>
+  <section class="grid2">
+    <div class="card">
+      <div class="hd"><h2>Monthly spend</h2><span class="count">last 3 months, rejected excluded</span></div>
+      <div class="chartbox" id="barChart"></div>
     </div>
     <div class="card">
-      <div class="hd"><h2>Build an expense report</h2></div>
-      <div class="rep">
-        <span class="g">Project: All</span>
-        <span class="g">Date: Q2 2026</span>
-        <span class="g">Status: Approved</span>
-        <div class="exp2">
-          <span class="expbtn"><span class="ic pdf">PDF</span> Export PDF</span>
-          <span class="expbtn"><span class="ic xls">XLS</span> Export Excel</span>
-        </div>
+      <div class="hd"><h2>Spend by category</h2><span class="count">last 3 months</span></div>
+      <div class="donutwrap">
+        <div class="chartbox" id="donut"></div>
+        <div class="legend" id="donutLegend"></div>
       </div>
     </div>
-  </div>
+  </section>
 
-</div>
+  <section class="card">
+    <div class="hd"><h2>Recent activity</h2><span class="count" id="actCount"></span></div>
+    <div id="activity"></div>
+  </section>
+</main>
 
-<div class="foot">Concept by <b>TruePulse OS</b> · built for the "expense submission, review, and finance tracking" posting · sample data and neutral styling, to be rebuilt against your attached mock-ups · <b>not a live product</b>.</div>
+<footer class="foot">ExpenseFlow (Concept) &middot; Acme Field Services sample data, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
 
+<script src="shared/app.js"></script>
 <script>
-  document.querySelectorAll('.tab').forEach(function(t){
-    t.addEventListener('click',function(){
-      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
-      document.querySelectorAll('.view').forEach(function(x){x.classList.remove('on');});
-      t.classList.add('on');
-      document.getElementById(t.dataset.v).classList.add('on');
-      window.scrollTo({top:0,behavior:'smooth'});
-    });
+(function () {
+  'use strict';
+  var A = window.ExpenseApp;
+  if (!A) return;
+  A.initChrome('dashboard');
+
+  function setText(id, txt) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  }
+
+  var ex = A.getState().expenses;
+  var nowKey = A.monthKey(A.todayIso());
+
+  /* --- KPI tiles --- */
+  var thisMonth = ex.filter(function (e) { return A.monthKey(e.date) === nowKey; });
+
+  var spend = 0, spendCount = 0;
+  thisMonth.forEach(function (e) {
+    if (e.status !== 'rejected') { spend += e.amount; spendCount++; }
   });
-  // review row selection
-  document.querySelectorAll('#review tbody tr').forEach(function(r){
-    r.addEventListener('click',function(){
-      document.querySelectorAll('#review tbody tr').forEach(function(x){x.classList.remove('sel');});
-      r.classList.add('sel');
-    });
+  setText('kpiSpend', A.fmtMoney0(spend));
+  setText('kpiSpendSub', spendCount + ' expense' + (spendCount === 1 ? '' : 's') + ' dated this month');
+
+  var pending = 0, info = 0;
+  ex.forEach(function (e) {
+    if (e.status === 'pending') pending++;
+    if (e.status === 'info') info++;
   });
+  setText('kpiPending', String(pending));
+  setText('kpiPendingSub', info > 0 ? info + ' more with info requested' : 'queue is otherwise clear');
+
+  var appr = 0, apprCount = 0;
+  thisMonth.forEach(function (e) {
+    if (e.status === 'approved') { appr += e.amount; apprCount++; }
+  });
+  setText('kpiApproved', A.fmtMoney0(appr));
+  setText('kpiApprovedSub', apprCount + ' expense' + (apprCount === 1 ? '' : 's') + ' approved');
+
+  var totalDays = 0, decided = 0;
+  ex.forEach(function (e) {
+    if (e.decidedAt && (e.status === 'approved' || e.status === 'rejected')) {
+      var d1 = new Date(e.createdAt), d2 = new Date(e.decidedAt);
+      totalDays += Math.max(0, (d2 - d1) / 86400000);
+      decided++;
+    }
+  });
+  if (decided > 0) {
+    var avg = totalDays / decided;
+    setText('kpiAvg', avg.toFixed(1) + ' days');
+    setText('kpiAvgSub', 'across ' + decided + ' decided expenses');
+  } else {
+    setText('kpiAvg', 'n/a');
+    setText('kpiAvgSub', 'no decided expenses yet');
+  }
+
+  /* --- monthly spend bar chart --- */
+  var months = A.lastMonths(3);
+  var bars = months.map(function (key) {
+    var v = 0;
+    ex.forEach(function (e) {
+      if (A.monthKey(e.date) === key && e.status !== 'rejected') v += e.amount;
+    });
+    return { label: A.monthShort(key), value: v };
+  });
+  A.renderBarChart(document.getElementById('barChart'), bars);
+
+  /* --- category donut --- */
+  var byCat = {};
+  ex.forEach(function (e) {
+    if (e.status === 'rejected') return;
+    byCat[e.category] = (byCat[e.category] || 0) + e.amount;
+  });
+  var items = A.CATEGORIES
+    .filter(function (c) { return byCat[c] > 0; })
+    .map(function (c) { return { label: c, value: byCat[c] }; })
+    .sort(function (a, b) { return b.value - a.value; });
+  A.renderDonut(document.getElementById('donut'), document.getElementById('donutLegend'), items, 'total spend');
+
+  /* --- recent activity --- */
+  var events = [];
+  ex.forEach(function (e) {
+    var amt = A.fmtMoney(e.amount);
+    events.push({
+      ts: e.createdAt, num: e.num, kind: 'submit',
+      html: '<b>' + A.esc(e.employee) + '</b> submitted ' + amt + ' to ' + A.esc(e.merchant) + ' (' + A.esc(e.category) + ')'
+    });
+    if (e.status === 'approved' && e.decidedAt) {
+      events.push({
+        ts: e.decidedAt, num: e.num, kind: 'approved',
+        html: '<b>Finance</b> approved ' + A.esc(e.employee) + "'s " + amt + ' ' + A.esc(e.category).toLowerCase() + ' expense'
+      });
+    }
+    if (e.status === 'rejected' && e.decidedAt) {
+      events.push({
+        ts: e.decidedAt, num: e.num, kind: 'rejected',
+        html: '<b>Finance</b> rejected ' + A.esc(e.employee) + "'s " + amt + ' ' + A.esc(e.category).toLowerCase() + ' expense'
+      });
+    }
+    if (e.status === 'info') {
+      var ts = e.comments.length ? e.comments[e.comments.length - 1].ts : e.createdAt;
+      events.push({
+        ts: ts, num: e.num, kind: 'info',
+        html: '<b>Finance</b> requested info on ' + A.esc(e.employee) + "'s " + amt + ' expense'
+      });
+    }
+  });
+  events.sort(function (a, b) {
+    if (a.ts !== b.ts) return a.ts < b.ts ? 1 : -1;
+    return b.num - a.num;
+  });
+  var recent = events.slice(0, 8);
+  var host = document.getElementById('activity');
+  if (host) {
+    if (!recent.length) {
+      host.innerHTML = '<div class="empty"><div class="big">No activity yet</div>Submit an expense to see it appear here.</div>';
+    } else {
+      host.innerHTML = recent.map(function (ev) {
+        return '<div class="act"><span class="ic ' + ev.kind + '"></span><span class="t">' + ev.html + '</span><span class="d">' + A.fmtDate(ev.ts) + '</span></div>';
+      }).join('');
+    }
+  }
+  setText('actCount', recent.length + ' recent events');
+})();
 </script>
 </body>
 </html>

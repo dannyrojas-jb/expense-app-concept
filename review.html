@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExpenseFlow (Concept) - Review queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+
+<div class="banner"><b>INTERACTIVE CONCEPT</b> - A working sample built for this proposal. Sample data only, stored in your browser. Not the final product.</div>
+
+<header class="top">
+  <a class="logo" href="index.html"><span class="mark">E</span> ExpenseFlow <span class="tagc">(Concept)</span></a>
+  <nav class="nav" aria-label="Main">
+    <a href="index.html" data-page="dashboard">Dashboard<span class="dot"></span></a>
+    <a href="submit.html" data-page="submit">Submit<span class="dot"></span></a>
+    <a href="review.html" data-page="review">Review<span class="dot"></span></a>
+    <a href="reports.html" data-page="reports">Reports<span class="dot"></span></a>
+  </nav>
+  <div class="right">
+    <div class="roleswitch" role="group" aria-label="Demo role">
+      <button type="button" data-role="employee">Employee</button>
+      <button type="button" data-role="admin">Finance Admin</button>
+    </div>
+    <span class="who" title="Jordan Reyes (demo user)">JR</span>
+  </div>
+</header>
+
+<main class="wrap view-in">
+  <div class="pagehead">
+    <h1>Review queue</h1>
+    <p class="lede">The finance view. Pick an expense, read the thread, and approve, reject, or ask for more information. Decisions update everywhere in the app instantly.</p>
+  </div>
+
+  <div class="adminNote">You are browsing as Employee. In the finished product this queue is only visible to finance admins; in this demo you can still act on expenses so everything stays clickable.</div>
+
+  <div class="filters" id="filters" role="group" aria-label="Filter by status"></div>
+
+  <div class="rgrid">
+    <div class="card">
+      <div class="hd"><h2>Expenses</h2><span class="count" id="qCount"></span></div>
+      <div class="tablewrap rowsel">
+        <table>
+          <thead>
+            <tr><th>Employee</th><th>Merchant</th><th>Amount</th><th>Status</th></tr>
+          </thead>
+          <tbody id="qBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card thread" id="panel"></div>
+  </div>
+</main>
+
+<footer class="foot">ExpenseFlow (Concept) &middot; Acme Field Services sample data, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
+
+<script src="shared/app.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ExpenseApp;
+  if (!A) return;
+  A.initChrome('review');
+
+  var FILTERS = [
+    ['all', 'All'],
+    ['pending', 'Pending'],
+    ['approved', 'Approved'],
+    ['rejected', 'Rejected'],
+    ['info', 'Info requested']
+  ];
+
+  var filter = 'pending';
+  var selectedId = null;
+
+  function allSorted() {
+    return A.getState().expenses.slice().sort(function (a, b) {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return b.num - a.num;
+    });
+  }
+
+  function filtered() {
+    var ex = allSorted();
+    if (filter === 'all') return ex;
+    return ex.filter(function (e) { return e.status === filter; });
+  }
+
+  /* keep the selection valid for the current filter */
+  function ensureSelection() {
+    var list = filtered();
+    var stillThere = list.some(function (e) { return e.id === selectedId; });
+    if (!stillThere) selectedId = list.length ? list[0].id : null;
+  }
+
+  /* --- filter pills --- */
+  function renderFilters() {
+    var host = document.getElementById('filters');
+    if (!host) return;
+    var counts = { all: 0, pending: 0, approved: 0, rejected: 0, info: 0 };
+    A.getState().expenses.forEach(function (e) {
+      counts.all++;
+      if (counts[e.status] != null) counts[e.status]++;
+    });
+    host.innerHTML = FILTERS.map(function (f) {
+      return '<button type="button" class="fbtn' + (filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' +
+        f[1] + '<span class="c">' + counts[f[0]] + '</span></button>';
+    }).join('');
+    var btns = host.querySelectorAll('.fbtn');
+    for (var i = 0; i < btns.length; i++) {
+      (function (b) {
+        b.addEventListener('click', function () {
+          filter = b.getAttribute('data-f');
+          ensureSelection();
+          renderAll();
+        });
+      })(btns[i]);
+    }
+  }
+
+  /* --- queue table --- */
+  function renderTable() {
+    var body = document.getElementById('qBody');
+    var count = document.getElementById('qCount');
+    if (!body) return;
+    var list = filtered();
+    if (count) count.textContent = list.length + ' shown';
+
+    if (!list.length) {
+      var msg = filter === 'pending'
+        ? 'Every pending expense has been processed. Nice work.'
+        : 'No expenses match this filter.';
+      body.innerHTML = '<tr><td colspan="4"><div class="empty"><div class="big">Nothing here</div>' + msg + '</div></td></tr>';
+      return;
+    }
+
+    body.innerHTML = list.map(function (e) {
+      var st = A.STATUS_META[e.status] || A.STATUS_META.pending;
+      return '<tr data-id="' + A.esc(e.id) + '" tabindex="0"' + (e.id === selectedId ? ' class="sel"' : '') + '>' +
+        '<td class="who2">' + A.esc(e.employee) + '<span class="p">' + A.fmtDate(e.date) + '</span></td>' +
+        '<td class="who2">' + A.esc(e.merchant) + '<span class="p">' + A.esc(e.category) + '</span></td>' +
+        '<td class="amtc">' + A.fmtMoney(e.amount) + '</td>' +
+        '<td><span class="st ' + st.cls + '">' + st.label + '</span></td></tr>';
+    }).join('');
+
+    var rows = body.querySelectorAll('tr[data-id]');
+    for (var i = 0; i < rows.length; i++) {
+      (function (r) {
+        function pick() {
+          selectedId = r.getAttribute('data-id');
+          renderTable();
+          renderPanel();
+        }
+        r.addEventListener('click', pick);
+        r.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(); }
+        });
+      })(rows[i]);
+    }
+  }
+
+  /* --- detail panel --- */
+  function renderPanel() {
+    var panel = document.getElementById('panel');
+    if (!panel) return;
+    var e = selectedId ? A.findExpense(selectedId) : null;
+
+    if (!e) {
+      panel.innerHTML = '<div class="empty" style="padding:60px 24px;"><div class="big">No expense selected</div>Pick an expense from the queue to review it.</div>';
+      return;
+    }
+
+    var st = A.STATUS_META[e.status] || A.STATUS_META.pending;
+    var h = '';
+
+    h += '<div class="hd"><h2>Expense #' + e.num + '</h2><span class="count"><span class="st ' + st.cls + '">' + st.label + '</span></span></div>';
+
+    h += '<div class="exp">' +
+      '<div class="big">' + A.fmtMoney(e.amount) + '</div>' +
+      '<div class="meta"><b>' + A.esc(e.employee) + '</b> &middot; ' + A.esc(e.category) + ' &middot; ' + A.esc(e.merchant) + ' &middot; ' + A.fmtDate(e.date) + '</div>' +
+      (e.description ? '<div class="desc">' + A.esc(e.description) + '</div>' : '') +
+      (e.receipt
+        ? '<span class="chip"><span class="x">PDF</span>' + A.esc(e.receipt) + '</span>'
+        : '<div class="desc" style="border-top:0;padding-top:4px;">No receipt attached.</div>') +
+      '</div>';
+
+    /* comment thread */
+    h += '<div class="msgs">';
+    if (!e.comments.length) {
+      h += '<div class="none">No comments yet. Any note you add below stays on this expense.</div>';
+    } else {
+      e.comments.forEach(function (c) {
+        var side = c.role === 'admin' ? 'admin' : 'user';
+        var who = c.role === 'admin' ? 'You (Finance Admin)' : c.author;
+        h += '<div class="msg ' + side + '"><div class="bub">' + A.esc(c.text) + '</div>' +
+          '<div class="lbl">' + A.esc(who) + ' &middot; ' + A.fmtDate(c.ts) + '</div></div>';
+      });
+    }
+    h += '</div>';
+
+    var open = (e.status === 'pending' || e.status === 'info');
+
+    if (open) {
+      h += '<div class="replybar">' +
+        '<textarea class="inp" id="cmtBox" rows="2" placeholder="Add a comment (required to reject or request info)..."></textarea>' +
+        '<div class="err" id="cmtErr"></div></div>';
+      h += '<div class="actbar">' +
+        '<button type="button" class="abtn ok" id="btnApprove">Approve</button>' +
+        '<button type="button" class="abtn q" id="btnInfo">Request info</button>' +
+        '<button type="button" class="abtn no" id="btnReject">Reject</button></div>';
+    } else {
+      var word = e.status === 'approved' ? 'approved' : 'rejected';
+      h += '<div class="decided">This expense was <b>' + word + '</b> on ' + A.fmtDate(e.decidedAt) + '. Decisions are final in this demo; use Reset demo data in the footer to start over.</div>';
+    }
+
+    panel.innerHTML = h;
+
+    if (open) {
+      var box = document.getElementById('cmtBox');
+      var err = document.getElementById('cmtErr');
+
+      function act(action, needComment, doneWord) {
+        var comment = box ? box.value.trim() : '';
+        if (needComment && !comment) {
+          if (err) {
+            err.textContent = 'Add a comment explaining the decision first.';
+            err.classList.add('show');
+          }
+          if (box) { box.classList.add('bad'); box.focus(); }
+          return;
+        }
+        A.actOn(e.id, action, comment);
+        renderAll();
+        A.showToast('Expense #' + e.num + ' ' + doneWord + '.');
+      }
+
+      if (box) {
+        box.addEventListener('input', function () {
+          box.classList.remove('bad');
+          if (err) err.classList.remove('show');
+        });
+      }
+      var bA = document.getElementById('btnApprove');
+      var bI = document.getElementById('btnInfo');
+      var bR = document.getElementById('btnReject');
+      if (bA) bA.addEventListener('click', function () { act('approved', false, 'approved'); });
+      if (bI) bI.addEventListener('click', function () { act('info', true, 'marked as info requested'); });
+      if (bR) bR.addEventListener('click', function () { act('rejected', true, 'rejected'); });
+    }
+  }
+
+  function renderAll() {
+    ensureSelection();
+    renderFilters();
+    renderTable();
+    renderPanel();
+  }
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
