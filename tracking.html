@@ -261,12 +261,14 @@
       ? '<div class="note">Spenddown includes ' + A.fmtMoney0(A.priorSpendTotal(fs)) + ' of prior recorded spend carried into this concept as sample history.</div>' : '';
 
     host.innerHTML = '<div class="hd"><h2>Funding source overview</h2>' + picker + '</div>' +
-      '<div class="grid2" style="margin:0;padding:16px 20px;gap:16px;">' +
-        '<div><div class="tablewrap"><table><thead><tr><th>Budget line item</th><th>Budget</th><th>Spenddown</th><th>Remaining</th></tr></thead>' +
+      '<div class="fsov">' +
+        '<div class="tablewrap"><table><thead><tr><th>Budget line item</th><th>Budget</th><th>Spenddown</th><th>Remaining</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
         '<tfoot><tr><td>Total</td><td class="amtc">' + A.fmtMoney0(totBudget) + '</td><td class="amtc">' + A.fmtMoney0(totSpent) + '</td><td class="amtc">' + A.fmtMoney0(totBudget - totSpent) + '</td></tr></tfoot></table></div>' +
-        '<div class="hbars" style="padding:14px 0 0;" id="lineBars"></div></div>' +
-        '<div class="donutwrap" style="padding:0;"><div class="chartbox" id="fsPie"></div><div class="legend" id="fsPieLegend"></div></div>' +
+        '<div class="fsov-charts">' +
+          '<div><div class="fsov-cap">Line items budget and spenddown</div><div class="hbars" style="padding:12px 0 0;" id="lineBars"></div></div>' +
+          '<div><div class="fsov-cap">Spending and remaining funds</div><div class="donutwrap" style="padding:12px 0 0;"><div class="chartbox" id="fsPie"></div><div class="legend" id="fsPieLegend"></div></div></div>' +
+        '</div>' +
       '</div>' + priorNote;
 
     A.renderHBars(document.getElementById('lineBars'), bars);

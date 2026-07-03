@@ -392,6 +392,17 @@ body[data-role="employee"] .adminNote{display:block;}
 .vscroll{max-height:480px;overflow-y:auto;}
 .vscroll thead th{position:sticky;top:0;z-index:1;}
 
+/* funding source overview: table on top, charts side by side below */
+.fsov{padding:16px 20px 18px;display:flex;flex-direction:column;gap:16px;}
+.fsov-charts{display:grid;grid-template-columns:1.05fr .95fr;gap:24px;align-items:start;}
+.fsov-charts>*{min-width:0;}
+.fsov-cap{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);}
+@media(max-width:900px){.fsov-charts{grid-template-columns:1fr;}}
+
+/* donut cells must never push past their container */
+.donutwrap{max-width:100%;}
+.donutwrap>*{min-width:0;}
+
 /* ===== tracking layout ===== */
 .trackgrid{display:grid;grid-template-columns:250px minmax(0,1fr);gap:16px;align-items:start;}
 .trackgrid>*{min-width:0;}
