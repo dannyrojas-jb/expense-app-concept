@@ -183,17 +183,23 @@
     srcs.forEach(function (f) { (years[f.year] = years[f.year] || []).push(f); });
     var yearKeys = Object.keys(years).sort().reverse();
 
+    /* horizontal bars: available amounts measurable on the x-axis, years down the y,
+       exactly as the client's tracking mock-up describes */
     var inner = '';
     yearKeys.forEach(function (y) {
       inner += '<div class="yearlbl">' + y + '</div><div class="hbars" style="padding-top:8px;">';
       var rows = years[y].map(function (f) {
         var committed = A.round2(A.fsCommitted(f.id) + A.priorSpendTotal(f));
+        var avail = A.fsAvailable(f.id);
         return {
           label: f.name,
           sub: 'total ' + A.fmtMoney0(f.total),
-          right: A.fmtMoney0(A.fsAvailable(f.id)) + ' available',
+          right: A.fmtMoney0(avail) + ' available',
           max: f.total,
-          segments: [{ value: committed, color: '#64748b', title: 'Spent or committed' }]
+          segments: [
+            { value: committed, color: '#64748b', title: 'Spent or committed: ' + A.fmtMoney0(committed) },
+            { value: Math.max(0, avail), color: '#0891b2', title: 'Available: ' + A.fmtMoney0(avail) }
+          ]
         };
       });
       var box = document.createElement('div');
@@ -201,10 +207,10 @@
       inner += box.innerHTML + '</div>';
     });
 
-    host.innerHTML = '<div class="hd"><h2>Funding overview</h2><span class="count">' + A.esc(projectName()) + '</span></div>' +
+    host.innerHTML = '<div class="hd"><h2>Funding overview</h2><span class="count">' + A.esc(projectName()) + ' &middot; amounts on the x, years on the y</span></div>' +
       (inner || '<div class="empty">No funding sources for this project.</div>') +
       '<div class="hkey"><span class="k"><span class="sw" style="background:#64748b;"></span>Spent or committed</span>' +
-      '<span class="k"><span class="sw" style="background:#eef2f7;border:1px solid #e2e8f0;"></span>Available</span></div>';
+      '<span class="k"><span class="sw" style="background:#0891b2;"></span>Available</span></div>';
   }
 
   function projectName() {
