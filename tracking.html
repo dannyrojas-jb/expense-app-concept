@@ -70,6 +70,8 @@
     projectId: null,
     fsId: null,
     month: 'all',
+    from: '',             /* date range for compiled reports, per the process map */
+    to: '',
     coaId: 'all',
     payeeId: 'all',
     status: 'all',
@@ -103,6 +105,8 @@
   function filtered() {
     var list = projectExpenses().filter(function (e) {
       if (sel.month !== 'all' && A.monthKey(e.date) !== sel.month) return false;
+      if (sel.from && e.date < sel.from) return false;
+      if (sel.to && e.date > sel.to) return false;
       if (sel.coaId !== 'all' && e.coaId !== sel.coaId) return false;
       if (sel.payeeId !== 'all' && e.payeeId !== sel.payeeId) return false;
       if (sel.status !== 'all' && e.status !== sel.status) return false;
@@ -135,11 +139,12 @@
       return;
     }
     host.innerHTML = '<div class="railhd" style="border-bottom:1px solid #e2e8f0;">All FSOs (admin only)</div>' +
+      '<div class="scrolllist">' +
       st.fsos.map(function (f) {
         var count = st.expenses.filter(function (e) { return e.fsoId === f.id; }).length;
         return '<button type="button" class="projitem' + (f.id === sel.fsoId ? ' sel' : '') + '" data-fso="' + f.id + '">' +
           A.esc(f.name) + '<span class="sub">' + count + ' expenses &middot; contact ' + A.esc(f.contact) + '</span></button>';
-      }).join('');
+      }).join('') + '</div>';
     host.querySelectorAll('[data-fso]').forEach(function (b) {
       b.addEventListener('click', function () {
         sel.fsoId = b.getAttribute('data-fso');
@@ -347,12 +352,14 @@
     host.innerHTML = '<div class="hd"><h2>Expenses</h2><span class="count">' + list.length + ' shown &middot; ' + A.fmtMoney(total) + '</span></div>' +
       '<div class="rep">' +
         '<select class="inp" id="fMonth" style="width:auto;">' + monthOptions(all) + '</select>' +
+        '<label style="display:flex;align-items:center;gap:6px;">From <input class="inp" type="date" id="fFrom" style="width:auto;" value="' + sel.from + '"></label>' +
+        '<label style="display:flex;align-items:center;gap:6px;">To <input class="inp" type="date" id="fTo" style="width:auto;" value="' + sel.to + '"></label>' +
         '<select class="inp" id="fCoa" style="width:auto;">' + coaOpts + '</select>' +
         '<select class="inp" id="fPayee" style="width:auto;">' + payeeOpts + '</select>' +
         '<select class="inp" id="fStatus" style="width:auto;">' + statusOpts + '</select>' +
         '<select class="inp" id="fSort" style="width:auto;">' + sortOpts + '</select>' +
       '</div>' +
-      '<div class="tablewrap rowsel"><table><thead><tr>' + (admin ? '<th></th>' : '') +
+      '<div class="tablewrap rowsel vscroll"><table><thead><tr>' + (admin ? '<th></th>' : '') +
       '<th>Date</th><th>Payee</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>' +
       '<tbody>' + (rows || '<tr><td colspan="' + (admin ? 6 : 5) + '"><div class="empty">No expenses match these filters.</div></td></tr>') + '</tbody></table></div>' +
       reportBar;
@@ -362,6 +369,8 @@
       if (el) el.addEventListener('change', function () { sel[key] = el.value; sel.openId = null; renderExpenses(); });
     }
     bindSel('fMonth', 'month');
+    bindSel('fFrom', 'from');
+    bindSel('fTo', 'to');
     bindSel('fCoa', 'coaId');
     bindSel('fPayee', 'payeeId');
     bindSel('fStatus', 'status');
@@ -458,8 +467,11 @@
         '</ol>';
     }
 
+    var rangeTxt = (sel.from || sel.to)
+      ? ' &middot; date range ' + (sel.from ? A.fmtDate(sel.from) : 'start') + ' to ' + (sel.to ? A.fmtDate(sel.to) : 'today')
+      : '';
     host.innerHTML = '<h1>Expense report: ' + A.esc(projectName()) + '</h1>' +
-      '<div class="sub">' + A.esc(f ? f.name : '') + ' &middot; generated ' + A.fmtDate(stamp()) + ' &middot; ' + list.length + ' expenses &middot; ' + A.fmtMoney(total) + ' total</div>' +
+      '<div class="sub">' + A.esc(f ? f.name : '') + ' &middot; generated ' + A.fmtDate(stamp()) + rangeTxt + ' &middot; ' + list.length + ' expenses &middot; ' + A.fmtMoney(total) + ' total</div>' +
       '<table><thead><tr><th>Ref</th><th>Date</th><th>Payee</th><th>Description</th><th>Line item</th><th style="text-align:right;">Amount</th><th>Status</th></tr></thead>' +
       '<tbody>' + rows + '</tbody>' +
       '<tfoot><tr class="tot"><td colspan="5">Total</td><td style="text-align:right;">' + A.fmtMoney(total) + '</td><td></td></tr></tfoot></table>' +

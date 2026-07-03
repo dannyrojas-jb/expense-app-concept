@@ -223,7 +223,7 @@
 
     var html = fields.map(function (f) {
       var checked = !!e.verify[f.key];
-      var editable = ['payee', 'date', 'description', 'coa'].indexOf(f.key) !== -1;
+      var editable = ['payee', 'date', 'description'].indexOf(f.key) !== -1;
       var editorHtml = '';
       if (editing[f.key]) {
         if (f.key === 'date') {
@@ -234,11 +234,6 @@
           editorHtml = '<select class="inp" id="ed_payee">' + A.payeesFor(e.fsoId).map(function (p) {
             return '<option value="' + p.id + '"' + (p.id === e.payeeId ? ' selected' : '') + '>' + A.esc(p.name) + '</option>';
           }).join('') + '</select>';
-        } else if (f.key === 'coa') {
-          editorHtml = '<select class="inp" id="ed_coa"><option value="">Assign a chart of accounts option...</option>' +
-            st.coa.map(function (c) {
-              return '<option value="' + c.id + '"' + (c.id === e.coaId ? ' selected' : '') + '>' + c.id + ' ' + A.esc(c.label) + '</option>';
-            }).join('') + '</select>';
         }
         editorHtml = '<div class="vedit">' + editorHtml +
           '<input class="inp" id="edc_' + f.key + '" placeholder="Add a comment about this edit (optional)">' +
@@ -251,14 +246,34 @@
         returnBox = '<div class="vcomment"><input class="inp" data-retc="' + f.key + '" placeholder="Comment for the FSO on this field" value="' + A.esc(returnComments[f.key] || '') + '"></div>';
       }
 
-      var coaMissing = f.key === 'coa' && !e.coaId
-        ? '<div class="vnote">Assign a COA (use Edit) before this field can be verified.</div>' : '';
+      /* COA is rendered as a live dropdown of chart of account options, per the mock-up */
+      var valueHtml;
+      if (f.key === 'coa') {
+        valueHtml = '<select class="inp" id="coaSel" style="margin-top:4px;" aria-label="Chart of accounts">' +
+          '<option value="">Assign a chart of accounts option...</option>' +
+          st.coa.map(function (c) {
+            return '<option value="' + c.id + '"' + (c.id === e.coaId ? ' selected' : '') + '>' + c.id + ' ' + A.esc(c.label) + '</option>';
+          }).join('') + '</select>' +
+          (!e.coaId ? '<div class="vnote">Assign a COA before this field can be verified.</div>' : '');
+      } else {
+        valueHtml = '<div class="vval">' + A.esc(fieldValue(e, f.key)) + '</div>';
+      }
+
+      /* budget details beside the expense details, per the process map's review interface */
+      var budgetHtml = '';
+      if (f.key === 'cost') {
+        budgetHtml = '<div class="vnote" style="color:#475569;">' + (e.allocations || []).map(function (al) {
+          var fs = A.fundingSource(al.fsId);
+          if (!fs) return '';
+          return 'Budget: ' + A.esc(fs.name + ' ' + fs.year) + ' has ' + A.fmtMoney0(A.fsAvailable(fs.id)) + ' of ' + A.fmtMoney0(fs.total) + ' available';
+        }).join('<br>') + '</div>';
+      }
 
       return '<div class="vrow' + (checked ? ' checked' : '') + '">' +
         '<div class="vtop">' +
         '<input type="checkbox" data-vf="' + f.key + '"' + (checked ? ' checked' : '') + (f.key === 'coa' && !e.coaId ? ' disabled' : '') + ' aria-label="Verify ' + A.esc(f.label) + '">' +
         '<div style="flex:1;min-width:0;"><div class="vlbl">' + A.esc(f.label) + '</div>' +
-        '<div class="vval">' + A.esc(fieldValue(e, f.key)) + '</div>' + coaMissing + '</div>' +
+        valueHtml + budgetHtml + '</div>' +
         (editable ? '<div class="vact"><button type="button" class="vbtn" data-edit="' + f.key + '">' + (editing[f.key] ? 'Close' : 'Edit') + '</button></div>' : '') +
         '</div>' + editorHtml + returnBox + '</div>';
     }).join('');
@@ -286,6 +301,18 @@
         renderAll();
       });
     });
+    var coaSel = document.getElementById('coaSel');
+    if (coaSel) {
+      coaSel.addEventListener('change', function () {
+        e.coaId = coaSel.value || null;
+        if (!e.coaId) e.verify.coa = false;
+        var c = A.coaItem(e.coaId);
+        A.pushHist(e, 'Alex Morgan', 'admin', e.coaId ? 'Assigned COA' : 'Cleared COA', c ? c.id + ' ' + c.label : '');
+        A.save();
+        A.showToast(e.coaId ? 'COA assigned: ' + c.id + ' ' + c.label + '.' : 'COA cleared.');
+        renderAll();
+      });
+    }
     host.querySelectorAll('[data-edit]').forEach(function (b) {
       b.addEventListener('click', function () {
         var k = b.getAttribute('data-edit');

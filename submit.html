@@ -336,7 +336,7 @@
         '<div class="wbanner info" style="margin-top:16px;">Do you have any expenses to submit for which you are missing documentation? ' +
           '<button type="button" class="btn sm" id="addAff" style="margin-left:auto;flex:none;">Yes, generate a Lost/Missing Receipt Affidavit</button></div>' +
       '</div>' +
-      '<div class="wizbar"><span class="hint">Reviewed requests are typically turned around within two weeks.</span>' +
+      '<div class="wizbar">' +
         '<button type="button" class="btn primary grow" id="next1" ' + (d.docs.length ? '' : 'disabled') + '>Continue to payees</button></div></div>';
 
     document.getElementById('addDoc').addEventListener('click', function () {
@@ -580,7 +580,8 @@
     if (nx) nx.addEventListener('click', function () { d.step = 4; saveDraft(); renderWizard(); });
   }
 
-  /* --- step 4: budget summary, before and after --- */
+  /* --- step 4: budget summary, before on the left and after on the right,
+         with this request highlighted, per the client's mock-up --- */
   function renderStep4() {
     var d = draft();
     var touched = {};
@@ -590,44 +591,47 @@
       });
     });
 
-    var host = document.createElement('div');
     var ids = Object.keys(touched);
     wiz.innerHTML = stepsBar(4) +
-      '<div class="card"><div class="hd"><h2>Budget summary</h2><span class="count">before on top, after underneath, this request highlighted</span></div>' +
-      '<div id="budgetBars"></div>' +
+      '<div class="card"><div class="hd"><h2>Budget summary</h2><span class="count">before on the left, after on the right, this request highlighted</span></div>' +
+      '<div class="form" id="budgetBars" style="display:flex;flex-direction:column;gap:20px;max-height:520px;overflow-y:auto;"></div>' +
       '<div class="hkey">' +
         '<span class="k"><span class="sw" style="background:#64748b;"></span>Already spent or committed</span>' +
         '<span class="k"><span class="sw" style="background:#0891b2;"></span>This request</span>' +
         '<span class="k"><span class="sw" style="background:#eef2f7;border:1px solid #e2e8f0;"></span>Available</span></div>' +
+      '<div class="form" style="padding-top:0;"><div class="wbanner info" style="margin:0;">Updated budgets are previewed above. Reviewed requests are typically turned around within two weeks.</div></div>' +
       '<div class="wizbar"><button type="button" class="btn" id="back4">Back to details</button>' +
         '<button type="button" class="btn primary grow" id="next4">Continue to review & submit</button></div></div>';
 
-    var rows = [];
-    ids.forEach(function (fsId) {
+    var bx = document.getElementById('budgetBars');
+    ids.forEach(function (fsId, i) {
       var fs = A.fundingSource(fsId);
       var committed = A.round2(A.fsCommitted(fsId) + A.priorSpendTotal(fs));
       var add = A.round2(touched[fsId]);
-      rows.push({
-        label: fs.name + ' ' + fs.year + ' (before)',
-        sub: A.project(fs.projectId).name,
-        right: A.fmtMoney0(fs.total - committed) + ' available of ' + A.fmtMoney0(fs.total),
+      var block = document.createElement('div');
+      block.innerHTML = '<div class="ba-name">' + A.esc(fs.name + ' ' + fs.year) +
+        ' <span class="sub">&middot; ' + A.esc(A.project(fs.projectId).name) + ' &middot; total ' + A.fmtMoney0(fs.total) + '</span></div>' +
+        '<div class="ba-grid">' +
+        '<div><div class="ba-cap">Before</div><div id="ba-b-' + i + '"></div></div>' +
+        '<div><div class="ba-cap">After (includes this request)</div><div id="ba-a-' + i + '"></div></div>' +
+        '</div>';
+      bx.appendChild(block);
+      A.renderHBars(document.getElementById('ba-b-' + i), [{
+        label: '',
+        right: A.fmtMoney0(fs.total - committed) + ' available',
         max: fs.total,
         segments: [{ value: committed, color: '#64748b', title: 'Spent or committed' }]
-      });
-      rows.push({
-        label: fs.name + ' ' + fs.year + ' (after)',
-        sub: 'includes this request',
-        right: A.fmtMoney0(fs.total - committed - add) + ' available of ' + A.fmtMoney0(fs.total),
+      }]);
+      A.renderHBars(document.getElementById('ba-a-' + i), [{
+        label: '',
+        right: A.fmtMoney0(fs.total - committed - add) + ' available',
         max: fs.total,
         segments: [
           { value: committed, color: '#64748b', title: 'Spent or committed' },
           { value: add, color: '#0891b2', title: 'This request' }
         ]
-      });
+      }]);
     });
-    var bx = document.getElementById('budgetBars');
-    bx.className = 'hbars';
-    A.renderHBars(bx, rows);
 
     document.getElementById('back4').addEventListener('click', function () { d.step = 3; saveDraft(); renderWizard(); });
     document.getElementById('next4').addEventListener('click', function () { d.step = 5; saveDraft(); renderWizard(); });
