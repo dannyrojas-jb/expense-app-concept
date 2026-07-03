@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExpenseFlow (Concept) - Expense Tracking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+
+<div class="banner"><b>INTERACTIVE CONCEPT</b> - A working sample built for this proposal. Sample data only, stored in your browser. Not the final product.</div>
+
+<header class="top">
+  <a class="logo" href="index.html"><span class="mark">E</span> ExpenseFlow <span class="tagc">(Concept)</span></a>
+  <nav class="nav" aria-label="Main">
+    <a href="index.html" data-page="dashboard">Dashboard<span class="dot"></span></a>
+    <a href="submit.html" data-page="submit">Payment Request<span class="dot"></span></a>
+    <a href="review.html" data-page="review">Review<span class="dot"></span></a>
+    <a href="tracking.html" data-page="tracking">Tracking<span class="dot"></span></a>
+    <a href="bookkeeper.html" data-page="bookkeeper">Bookkeeper<span class="dot"></span></a>
+  </nav>
+  <div class="right">
+    <div class="roleswitch" role="group" aria-label="Demo role">
+      <button type="button" data-role="fso">FSO</button>
+      <button type="button" data-role="admin">Admin</button>
+      <button type="button" data-role="bookkeeper">Bookkeeper</button>
+    </div>
+    <span class="who">JR</span>
+  </div>
+</header>
+
+<main class="wrap view-in">
+  <div class="pagehead">
+    <h1>Expense Tracking</h1>
+    <p class="lede" id="lede">Every expense within a project, broken out by budget line item and funding source. FSOs see their own organization; admins see every FSO and can generate reports.</p>
+  </div>
+
+  <div class="trackgrid">
+    <div>
+      <div class="card" id="fsoCard" style="margin-bottom:16px;"></div>
+      <div class="card" id="projCard"></div>
+    </div>
+    <div>
+      <div class="card" id="fundingCard" style="margin-bottom:16px;"></div>
+      <div class="card" id="fsDetailCard" style="margin-bottom:16px;"></div>
+      <div class="card" id="expCard"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">ExpenseFlow (Concept) &middot; Fictional sample FSOs and grants, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
+
+<div id="printReport" aria-hidden="true"></div>
+
+<script src="shared/app.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ExpenseApp;
+  if (!A) return;
+  A.initChrome('tracking');
+
+  var st = A.getState();
+
+  var sel = {
+    fsoId: A.CURRENT_FSO,
+    projectId: null,
+    fsId: null,
+    month: 'all',
+    coaId: 'all',
+    payeeId: 'all',
+    status: 'all',
+    sort: 'date',
+    openId: null,
+    includeDocs: true,
+    excluded: {}          /* expense id -> true when deselected for the report */
+  };
+
+  function isAdmin() { return st.role === 'admin' || st.role === 'bookkeeper'; }
+
+  function ensureScope() {
+    if (!isAdmin()) sel.fsoId = A.CURRENT_FSO;
+    if (!A.fso(sel.fsoId)) sel.fsoId = A.CURRENT_FSO;
+    var projs = A.projectsFor(sel.fsoId).filter(function (p) { return p.active; });
+    if (!sel.projectId || !projs.some(function (p) { return p.id === sel.projectId; })) {
+      sel.projectId = projs.length ? projs[0].id : null;
+    }
+    var srcs = sel.projectId ? A.fundingForProject(sel.projectId) : [];
+    if (!sel.fsId || !srcs.some(function (f) { return f.id === sel.fsId; })) {
+      sel.fsId = srcs.length ? srcs[0].id : null;
+    }
+  }
+
+  /* ---------- scoped expense list ---------- */
+
+  function projectExpenses() {
+    return st.expenses.filter(function (e) { return e.projectId === sel.projectId; });
+  }
+
+  function filtered() {
+    var list = projectExpenses().filter(function (e) {
+      if (sel.month !== 'all' && A.monthKey(e.date) !== sel.month) return false;
+      if (sel.coaId !== 'all' && e.coaId !== sel.coaId) return false;
+      if (sel.payeeId !== 'all' && e.payeeId !== sel.payeeId) return false;
+      if (sel.status !== 'all' && e.status !== sel.status) return false;
+      return true;
+    });
+    list.sort(function (a, b) {
+      if (sel.sort === 'payee') {
+        var pa = A.payeeName(a.payeeId), pb = A.payeeName(b.payeeId);
+        if (pa !== pb) return pa < pb ? -1 : 1;
+      } else if (sel.sort === 'coa') {
+        var ca = a.coaId || 'zzz', cb = b.coaId || 'zzz';
+        if (ca !== cb) return ca < cb ? -1 : 1;
+      } else if (sel.sort === 'amount') {
+        if (a.amount !== b.amount) return b.amount - a.amount;
+      }
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return b.num - a.num;
+    });
+    return list;
+  }
+
+  /* ---------- left rail ---------- */
+
+  function renderFsoCard() {
+    var host = document.getElementById('fsoCard');
+    if (!isAdmin()) {
+      host.innerHTML = '<div class="railhd" style="border-bottom:1px solid #e2e8f0;">Your organization</div>' +
+        '<div class="projitem sel" style="cursor:default;">' + A.esc(A.fso(A.CURRENT_FSO).name) +
+        '<span class="sub">The full FSO list is visible to admins only. Switch roles to see it.</span></div>';
+      return;
+    }
+    host.innerHTML = '<div class="railhd" style="border-bottom:1px solid #e2e8f0;">All FSOs (admin only)</div>' +
+      st.fsos.map(function (f) {
+        var count = st.expenses.filter(function (e) { return e.fsoId === f.id; }).length;
+        return '<button type="button" class="projitem' + (f.id === sel.fsoId ? ' sel' : '') + '" data-fso="' + f.id + '">' +
+          A.esc(f.name) + '<span class="sub">' + count + ' expenses &middot; contact ' + A.esc(f.contact) + '</span></button>';
+      }).join('');
+    host.querySelectorAll('[data-fso]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        sel.fsoId = b.getAttribute('data-fso');
+        sel.projectId = null; sel.fsId = null; sel.openId = null; sel.excluded = {};
+        renderAll();
+      });
+    });
+  }
+
+  function renderProjCard() {
+    var host = document.getElementById('projCard');
+    var projs = A.projectsFor(sel.fsoId).filter(function (p) { return p.active; });
+    host.innerHTML = '<div class="railhd" style="border-bottom:1px solid #e2e8f0;">Active projects</div>' +
+      projs.map(function (p) {
+        var spend = 0;
+        st.expenses.forEach(function (e) { if (e.projectId === p.id && e.status === 'approved') spend += e.amount; });
+        return '<button type="button" class="projitem' + (p.id === sel.projectId ? ' sel' : '') + '" data-prj="' + p.id + '">' +
+          A.esc(p.name) + '<span class="sub">' + A.fmtMoney0(spend) + ' approved spend</span></button>';
+      }).join('') +
+      '<div class="note">Sort the expense list by month, budget line item, or payee using the controls on the right.</div>';
+    host.querySelectorAll('[data-prj]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        sel.projectId = b.getAttribute('data-prj');
+        sel.fsId = null; sel.openId = null; sel.excluded = {};
+        renderAll();
+      });
+    });
+  }
+
+  /* ---------- funding overview (horizontal bars, grouped by year) ---------- */
+
+  function renderFunding() {
+    var host = document.getElementById('fundingCard');
+    var srcs = sel.projectId ? A.fundingForProject(sel.projectId) : [];
+    var years = {};
+    srcs.forEach(function (f) { (years[f.year] = years[f.year] || []).push(f); });
+    var yearKeys = Object.keys(years).sort().reverse();
+
+    var inner = '';
+    yearKeys.forEach(function (y) {
+      inner += '<div class="yearlbl">' + y + '</div><div class="hbars" style="padding-top:8px;">';
+      var rows = years[y].map(function (f) {
+        var committed = A.round2(A.fsCommitted(f.id) + A.priorSpendTotal(f));
+        return {
+          label: f.name,
+          sub: 'total ' + A.fmtMoney0(f.total),
+          right: A.fmtMoney0(A.fsAvailable(f.id)) + ' available',
+          max: f.total,
+          segments: [{ value: committed, color: '#64748b', title: 'Spent or committed' }]
+        };
+      });
+      var box = document.createElement('div');
+      A.renderHBars(box, rows);
+      inner += box.innerHTML + '</div>';
+    });
+
+    host.innerHTML = '<div class="hd"><h2>Funding overview</h2><span class="count">' + A.esc(projectName()) + '</span></div>' +
+      (inner || '<div class="empty">No funding sources for this project.</div>') +
+      '<div class="hkey"><span class="k"><span class="sw" style="background:#64748b;"></span>Spent or committed</span>' +
+      '<span class="k"><span class="sw" style="background:#eef2f7;border:1px solid #e2e8f0;"></span>Available</span></div>';
+  }
+
+  function projectName() {
+    var p = A.project(sel.projectId);
+    return p ? p.name : 'No project selected';
+  }
+
+  /* ---------- funding source overview: line item table + pie ---------- */
+
+  function renderFsDetail() {
+    var host = document.getElementById('fsDetailCard');
+    var srcs = sel.projectId ? A.fundingForProject(sel.projectId) : [];
+    if (!srcs.length) { host.innerHTML = '<div class="empty">No funding sources to break down.</div>'; return; }
+
+    var fs = A.fundingSource(sel.fsId) || srcs[0];
+    sel.fsId = fs.id;
+
+    var picker = srcs.length > 1
+      ? '<select class="inp" id="fsPick" style="width:auto;min-width:200px;">' + srcs.map(function (f) {
+          return '<option value="' + f.id + '"' + (f.id === fs.id ? ' selected' : '') + '>' + A.esc(f.name + ' ' + f.year) + '</option>';
+        }).join('') + '</select>'
+      : '<span class="count">' + A.esc(fs.name + ' ' + fs.year) + '</span>';
+
+    var lineIds = Object.keys(fs.lineBudgets);
+    var rows = '', bars = [], pie = [];
+    var totBudget = 0, totSpent = 0;
+    lineIds.forEach(function (cid, i) {
+      var c = A.coaItem(cid);
+      var budget = fs.lineBudgets[cid];
+      var spent = A.lineSpent(fs.id, cid);
+      totBudget += budget; totSpent += spent;
+      rows += '<tr><td class="who2">' + cid + ' ' + A.esc(c ? c.label : '') + '</td>' +
+        '<td class="amtc">' + A.fmtMoney0(budget) + '</td>' +
+        '<td class="amtc">' + A.fmtMoney0(spent) + '</td>' +
+        '<td class="amtc" style="color:' + (budget - spent < 0 ? '#dc2626' : '#059669') + ';">' + A.fmtMoney0(budget - spent) + '</td></tr>';
+      bars.push({
+        label: cid + ' ' + (c ? c.label : ''),
+        right: A.fmtMoney0(spent) + ' of ' + A.fmtMoney0(budget),
+        max: budget,
+        segments: [{ value: spent, color: A.PALETTE[i % A.PALETTE.length], title: 'Spenddown' }]
+      });
+      if (spent > 0) pie.push({ label: cid + ' ' + (c ? c.label : ''), value: spent, color: A.PALETTE[i % A.PALETTE.length] });
+    });
+    var remaining = Math.max(0, totBudget - totSpent);
+    if (remaining > 0) pie.push({ label: 'Remaining funds', value: remaining, color: '#e2e8f0' });
+
+    var priorNote = A.priorSpendTotal(fs) > 0
+      ? '<div class="note">Spenddown includes ' + A.fmtMoney0(A.priorSpendTotal(fs)) + ' of prior recorded spend carried into this concept as sample history.</div>' : '';
+
+    host.innerHTML = '<div class="hd"><h2>Funding source overview</h2>' + picker + '</div>' +
+      '<div class="grid2" style="margin:0;padding:16px 20px;gap:16px;">' +
+        '<div><div class="tablewrap"><table><thead><tr><th>Budget line item</th><th>Budget</th><th>Spenddown</th><th>Remaining</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+        '<tfoot><tr><td>Total</td><td class="amtc">' + A.fmtMoney0(totBudget) + '</td><td class="amtc">' + A.fmtMoney0(totSpent) + '</td><td class="amtc">' + A.fmtMoney0(totBudget - totSpent) + '</td></tr></tfoot></table></div>' +
+        '<div class="hbars" style="padding:14px 0 0;" id="lineBars"></div></div>' +
+        '<div class="donutwrap" style="padding:0;"><div class="chartbox" id="fsPie"></div><div class="legend" id="fsPieLegend"></div></div>' +
+      '</div>' + priorNote;
+
+    A.renderHBars(document.getElementById('lineBars'), bars);
+    A.renderDonut(document.getElementById('fsPie'), document.getElementById('fsPieLegend'), pie, 'budget ' + A.fmtMoney0(totBudget));
+
+    var pick = document.getElementById('fsPick');
+    if (pick) pick.addEventListener('change', function () { sel.fsId = pick.value; renderFsDetail(); });
+  }
+
+  /* ---------- expense list + report builder ---------- */
+
+  function monthOptions(list) {
+    var seen = {};
+    list.forEach(function (e) { seen[A.monthKey(e.date)] = true; });
+    var keys = Object.keys(seen).sort().reverse();
+    return '<option value="all">All months</option>' + keys.map(function (k) {
+      return '<option value="' + k + '"' + (k === sel.month ? ' selected' : '') + '>' + A.monthLabel(k) + '</option>';
+    }).join('');
+  }
+
+  function renderExpenses() {
+    var host = document.getElementById('expCard');
+    var all = projectExpenses();
+    var list = filtered();
+    var admin = st.role === 'admin';
+
+    var coaOpts = '<option value="all">All line items</option>' + st.coa.map(function (c) {
+      return '<option value="' + c.id + '"' + (c.id === sel.coaId ? ' selected' : '') + '>' + c.id + ' ' + A.esc(c.label) + '</option>';
+    }).join('');
+    var payeeOpts = '<option value="all">All payees</option>' + A.payeesFor(sel.fsoId).map(function (p) {
+      return '<option value="' + p.id + '"' + (p.id === sel.payeeId ? ' selected' : '') + '>' + A.esc(p.name) + '</option>';
+    }).join('');
+    var statusOpts = '<option value="all">All statuses</option>' + Object.keys(A.STATUS_META).map(function (s) {
+      return '<option value="' + s + '"' + (s === sel.status ? ' selected' : '') + '>' + A.STATUS_META[s].label + '</option>';
+    }).join('');
+    var sortOpts = [['date', 'Sort: newest first'], ['payee', 'Sort: payee'], ['coa', 'Sort: budget line item'], ['amount', 'Sort: amount']].map(function (o) {
+      return '<option value="' + o[0] + '"' + (o[0] === sel.sort ? ' selected' : '') + '>' + o[1] + '</option>';
+    }).join('');
+
+    var total = 0, selCount = 0, selTotal = 0;
+    var rows = list.map(function (e) {
+      total += e.amount;
+      var included = !sel.excluded[e.id];
+      if (included) { selCount++; selTotal += e.amount; }
+      var stm = A.STATUS_META[e.status];
+      var c = A.coaItem(e.coaId);
+      var open = sel.openId === e.id;
+      var detail = '';
+      if (open) {
+        var allocs = (e.allocations || []).map(function (al) {
+          var f = A.fundingSource(al.fsId);
+          return A.fmtMoney(al.amount) + ' from ' + (f ? f.name + ' ' + f.year : 'unknown');
+        }).join(' + ');
+        var hist = e.history.map(function (h) {
+          return '<div class="h"><span class="hd2">' + A.fmtDate(h.ts) + '</span><span class="hb"><b>' + A.esc(h.actor) + '</b> ' + A.esc(h.action) +
+            (h.note ? '<span class="note">' + A.esc(h.note) + '</span>' : '') + '</span></div>';
+        }).join('');
+        detail = '<tr><td colspan="' + (admin ? 6 : 5) + '" style="background:#f8fafc;">' +
+          '<div style="padding:6px 2px;font-size:12.5px;color:#475569;">' +
+          '<b>#' + e.num + '</b> &middot; ' + allocs +
+          ' &middot; Documentation: ' + A.esc(e.doc.name) +
+          (e.qb ? ' &middot; ' + A.QB_META[e.qb].label : '') + '</div>' +
+          '<div class="hist" style="border:1px solid #e2e8f0;border-radius:10px;background:#fff;">' + hist + '</div></td></tr>';
+      }
+      return '<tr class="' + (open ? 'sel' : '') + '" data-open="' + e.id + '" style="cursor:pointer;">' +
+        (admin ? '<td><span class="selrow"><input type="checkbox" data-inc="' + e.id + '"' + (included ? ' checked' : '') + ' aria-label="Include in report"></span></td>' : '') +
+        '<td style="white-space:nowrap;">' + A.fmtDate(e.date) + '</td>' +
+        '<td class="who2">' + A.esc(A.payeeName(e.payeeId)) + '</td>' +
+        '<td>' + A.esc(e.description) + (c ? '<span class="p" style="display:block;font-size:11px;color:#94a3b8;">' + c.id + ' ' + A.esc(c.label) + '</span>' : '') + '</td>' +
+        '<td class="amtc">' + A.fmtMoney(e.amount) + '</td>' +
+        '<td><span class="st ' + stm.cls + '">' + stm.label + '</span></td></tr>' + detail;
+    }).join('');
+
+    var reportBar = '';
+    if (admin) {
+      reportBar = '<div class="rep" style="border-top:1px solid #e2e8f0;">' +
+        '<span class="g">' + selCount + ' of ' + list.length + ' selected &middot; ' + A.fmtMoney(selTotal) + '</span>' +
+        '<label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:normal;cursor:pointer;">' +
+          '<input type="checkbox" id="incDocs"' + (sel.includeDocs ? ' checked' : '') + ' style="width:15px;height:15px;accent-color:#0891b2;">Include ordered list of attached documentation</label>' +
+        '<span class="grow"></span>' +
+        '<button type="button" class="expbtn" id="pdfBtn"><span class="ic" style="background:#dc2626;">PDF</span>Generate PDF report</button>' +
+        '<button type="button" class="expbtn" id="xlsBtn"><span class="ic">XLS</span>Export Excel</button>' +
+        '<button type="button" class="expbtn" id="csvBtn"><span class="ic" style="background:#0891b2;">CSV</span>Export CSV</button></div>' +
+        '<div class="note">PDF opens your browser print dialog with a print-styled report. Excel is a real .xls file generated in the browser (SpreadsheetML). Both are labeled as concept output.</div>';
+    } else {
+      reportBar = '<div class="note">Report generation (PDF with selectable expenses, Excel) is available to admins. Switch to the Admin role to try it.</div>';
+    }
+
+    host.innerHTML = '<div class="hd"><h2>Expenses</h2><span class="count">' + list.length + ' shown &middot; ' + A.fmtMoney(total) + '</span></div>' +
+      '<div class="rep">' +
+        '<select class="inp" id="fMonth" style="width:auto;">' + monthOptions(all) + '</select>' +
+        '<select class="inp" id="fCoa" style="width:auto;">' + coaOpts + '</select>' +
+        '<select class="inp" id="fPayee" style="width:auto;">' + payeeOpts + '</select>' +
+        '<select class="inp" id="fStatus" style="width:auto;">' + statusOpts + '</select>' +
+        '<select class="inp" id="fSort" style="width:auto;">' + sortOpts + '</select>' +
+      '</div>' +
+      '<div class="tablewrap rowsel"><table><thead><tr>' + (admin ? '<th></th>' : '') +
+      '<th>Date</th><th>Payee</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>' +
+      '<tbody>' + (rows || '<tr><td colspan="' + (admin ? 6 : 5) + '"><div class="empty">No expenses match these filters.</div></td></tr>') + '</tbody></table></div>' +
+      reportBar;
+
+    function bindSel(id, key) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', function () { sel[key] = el.value; sel.openId = null; renderExpenses(); });
+    }
+    bindSel('fMonth', 'month');
+    bindSel('fCoa', 'coaId');
+    bindSel('fPayee', 'payeeId');
+    bindSel('fStatus', 'status');
+    bindSel('fSort', 'sort');
+
+    host.querySelectorAll('[data-open]').forEach(function (tr) {
+      tr.addEventListener('click', function (ev) {
+        if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.closest('.selrow'))) return;
+        var id = tr.getAttribute('data-open');
+        sel.openId = sel.openId === id ? null : id;
+        renderExpenses();
+      });
+    });
+    host.querySelectorAll('[data-inc]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var id = cb.getAttribute('data-inc');
+        if (cb.checked) delete sel.excluded[id];
+        else sel.excluded[id] = true;
+        renderExpenses();
+      });
+    });
+
+    var incDocs = document.getElementById('incDocs');
+    if (incDocs) incDocs.addEventListener('change', function () { sel.includeDocs = incDocs.checked; });
+
+    var pdfBtn = document.getElementById('pdfBtn');
+    if (pdfBtn) pdfBtn.addEventListener('click', function () { generatePdf(list.filter(function (e) { return !sel.excluded[e.id]; })); });
+    var xlsBtn = document.getElementById('xlsBtn');
+    if (xlsBtn) xlsBtn.addEventListener('click', function () { exportExcel(list.filter(function (e) { return !sel.excluded[e.id]; })); });
+    var csvBtn = document.getElementById('csvBtn');
+    if (csvBtn) csvBtn.addEventListener('click', function () { exportCsv(list.filter(function (e) { return !sel.excluded[e.id]; })); });
+  }
+
+  /* ---------- exports ---------- */
+
+  function exportRows(list) {
+    return list.map(function (e) {
+      var c = A.coaItem(e.coaId);
+      var f = A.fso(e.fsoId);
+      var allocs = (e.allocations || []).map(function (al) {
+        var fs = A.fundingSource(al.fsId);
+        return (fs ? fs.name + ' ' + fs.year : 'unknown') + ': ' + al.amount.toFixed(2);
+      }).join('; ');
+      return ['#' + e.num, e.date, f ? f.name : '', projectName(), A.payeeName(e.payeeId),
+        e.description, c ? c.id + ' ' + c.label : '', allocs, e.amount,
+        A.STATUS_META[e.status].label, e.qb ? A.QB_META[e.qb].label : '', e.doc.name];
+    });
+  }
+
+  var HEADER = ['Ref', 'Date', 'FSO', 'Project', 'Payee', 'Description', 'Budget line item (COA)', 'Funding source allocations', 'Amount', 'Status', 'Bookkeeping', 'Documentation'];
+
+  function stamp() { return A.todayIso(); }
+
+  function exportExcel(list) {
+    if (!list.length) { A.showToast('Nothing selected to export.'); return; }
+    A.exportExcel('Expenses', HEADER, exportRows(list), 'expense-report-' + stamp() + '.xls');
+    A.showToast('Excel report downloaded (.xls, generated in your browser).');
+  }
+
+  function exportCsv(list) {
+    if (!list.length) { A.showToast('Nothing selected to export.'); return; }
+    A.exportCsv([HEADER].concat(exportRows(list)), 'expense-report-' + stamp() + '.csv');
+    A.showToast('CSV downloaded.');
+  }
+
+  function generatePdf(list) {
+    if (!list.length) { A.showToast('Nothing selected for the report.'); return; }
+    var host = document.getElementById('printReport');
+    var f = A.fso(sel.fsoId);
+    var total = 0;
+    var rows = list.map(function (e) {
+      total += e.amount;
+      var c = A.coaItem(e.coaId);
+      return '<tr><td>#' + e.num + '</td><td>' + A.fmtDate(e.date) + '</td><td>' + A.esc(A.payeeName(e.payeeId)) + '</td>' +
+        '<td>' + A.esc(e.description) + '</td><td>' + (c ? c.id + ' ' + A.esc(c.label) : '') + '</td>' +
+        '<td style="text-align:right;">' + A.fmtMoney(e.amount) + '</td><td>' + A.STATUS_META[e.status].label + '</td></tr>';
+    }).join('');
+
+    var byLine = {};
+    list.forEach(function (e) {
+      var k = e.coaId || 'unassigned';
+      byLine[k] = (byLine[k] || 0) + e.amount;
+    });
+    var lineRows = Object.keys(byLine).sort().map(function (k) {
+      var c = A.coaItem(k);
+      return '<tr><td>' + (c ? c.id + ' ' + A.esc(c.label) : 'Not yet assigned') + '</td><td style="text-align:right;">' + A.fmtMoney(byLine[k]) + '</td></tr>';
+    }).join('');
+
+    var docsBlock = '';
+    if (sel.includeDocs) {
+      docsBlock = '<h2>Attached documentation (ordered)</h2><ol>' +
+        list.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.num - b.num; })
+          .map(function (e) { return '<li>' + A.esc(e.doc.name) + ' &middot; #' + e.num + ' &middot; ' + A.fmtDate(e.date) + ' &middot; ' + A.fmtMoney(e.amount) + '</li>'; }).join('') +
+        '</ol>';
+    }
+
+    host.innerHTML = '<h1>Expense report: ' + A.esc(projectName()) + '</h1>' +
+      '<div class="sub">' + A.esc(f ? f.name : '') + ' &middot; generated ' + A.fmtDate(stamp()) + ' &middot; ' + list.length + ' expenses &middot; ' + A.fmtMoney(total) + ' total</div>' +
+      '<table><thead><tr><th>Ref</th><th>Date</th><th>Payee</th><th>Description</th><th>Line item</th><th style="text-align:right;">Amount</th><th>Status</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '<tfoot><tr class="tot"><td colspan="5">Total</td><td style="text-align:right;">' + A.fmtMoney(total) + '</td><td></td></tr></tfoot></table>' +
+      '<h2>Summary by budget line item</h2>' +
+      '<table><tbody>' + lineRows + '</tbody></table>' +
+      docsBlock +
+      '<div class="fineprint">ExpenseFlow (Concept). Sample data only. Generated from the interactive concept build; the finished product would render this server-side as a stored PDF.</div>';
+    window.print();
+  }
+
+  /* ---------- assemble ---------- */
+
+  function renderAll() {
+    st = A.getState();
+    ensureScope();
+    var lede = document.getElementById('lede');
+    if (lede) {
+      lede.textContent = isAdmin()
+        ? 'Every expense within a project, broken out by budget line item and funding source. You are viewing as admin: pick any FSO, filter the list, then build a PDF or Excel report with exactly the expenses you want.'
+        : 'Your projects, funding sources, and expenses. Submitted expenses show as Pending approval until the review approves them, exactly like the process documents describe.';
+    }
+    renderFsoCard();
+    renderProjCard();
+    renderFunding();
+    renderFsDetail();
+    renderExpenses();
+  }
+
+  renderAll();
+  document.addEventListener('rolechange', function () {
+    sel.openId = null; sel.excluded = {};
+    renderAll();
+  });
+})();
+</script>
+</body>
+</html>

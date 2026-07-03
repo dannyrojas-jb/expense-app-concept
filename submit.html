@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ExpenseFlow (Concept) - Submit an expense</title>
+<title>ExpenseFlow (Concept) - Payment Request</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,79 +17,34 @@
   <a class="logo" href="index.html"><span class="mark">E</span> ExpenseFlow <span class="tagc">(Concept)</span></a>
   <nav class="nav" aria-label="Main">
     <a href="index.html" data-page="dashboard">Dashboard<span class="dot"></span></a>
-    <a href="submit.html" data-page="submit">Submit<span class="dot"></span></a>
+    <a href="submit.html" data-page="submit">Payment Request<span class="dot"></span></a>
     <a href="review.html" data-page="review">Review<span class="dot"></span></a>
-    <a href="reports.html" data-page="reports">Reports<span class="dot"></span></a>
+    <a href="tracking.html" data-page="tracking">Tracking<span class="dot"></span></a>
+    <a href="bookkeeper.html" data-page="bookkeeper">Bookkeeper<span class="dot"></span></a>
   </nav>
   <div class="right">
     <div class="roleswitch" role="group" aria-label="Demo role">
-      <button type="button" data-role="employee">Employee</button>
-      <button type="button" data-role="admin">Finance Admin</button>
+      <button type="button" data-role="fso">FSO</button>
+      <button type="button" data-role="admin">Admin</button>
+      <button type="button" data-role="bookkeeper">Bookkeeper</button>
     </div>
-    <span class="who" title="Jordan Reyes (demo user)">JR</span>
+    <span class="who">JR</span>
   </div>
 </header>
 
 <main class="wrap view-in">
   <div class="pagehead">
-    <h1>Submit an expense</h1>
-    <p class="lede">File an expense in under a minute. It lands in the finance review queue as Pending, and you can watch its status change from this page. You are submitting as Jordan Reyes, the demo user.</p>
+    <h1>Payment Request</h1>
+    <p class="lede">The FSO portal flow from the process documents: upload documentation in bulk, pick payees, fill one data collection screen per document, check the budget impact, and submit. Progress is saved automatically in your browser.</p>
   </div>
 
-  <div class="cols">
-    <form class="card" id="expForm" novalidate>
-      <div class="hd"><h2>New expense</h2></div>
-      <div class="form">
-        <div class="field">
-          <label for="fAmount">Amount (USD)</label>
-          <input class="inp big" id="fAmount" name="amount" inputmode="decimal" autocomplete="off" placeholder="0.00">
-          <div class="err" id="errAmount"></div>
-        </div>
-        <div class="row2">
-          <div class="field">
-            <label for="fDate">Date</label>
-            <input class="inp" id="fDate" name="date" type="date">
-            <div class="err" id="errDate"></div>
-          </div>
-          <div class="field">
-            <label for="fCategory">Category</label>
-            <select class="inp" id="fCategory" name="category">
-              <option value="" selected>Select a category...</option>
-            </select>
-            <div class="err" id="errCategory"></div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="fMerchant">Merchant</label>
-          <input class="inp" id="fMerchant" name="merchant" autocomplete="off" placeholder="Where was this spent?">
-          <div class="err" id="errMerchant"></div>
-        </div>
-        <div class="field">
-          <label for="fDesc">Description <span style="text-transform:none;font-weight:500;">(optional)</span></label>
-          <textarea class="inp" id="fDesc" name="description" rows="2" placeholder="What was this for?"></textarea>
-        </div>
-        <div class="field">
-          <label>Receipt</label>
-          <div class="up" id="upZone">
-            <div id="attachEmpty">
-              <button type="button" class="attachbtn" id="attachBtn">Attach receipt (sample)</button>
-              <div class="hint">Demo only. A sample filename is attached, nothing leaves your browser.</div>
-            </div>
-            <div id="attachChip" style="display:none;"></div>
-          </div>
-        </div>
-        <button type="submit" class="submit">Submit expense</button>
-      </div>
-    </form>
-
-    <div class="card side">
-      <div class="hd"><h2>My submissions</h2><span class="count" id="mineCount"></span></div>
-      <div id="mineList"></div>
-    </div>
-  </div>
+  <div id="gate"></div>
+  <div id="returnedPanel"></div>
+  <div id="wizard"></div>
+  <div id="myRequests"></div>
 </main>
 
-<footer class="foot">ExpenseFlow (Concept) &middot; Acme Field Services sample data, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
+<footer class="foot">ExpenseFlow (Concept) &middot; Fictional sample FSOs and grants, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
 
 <script src="shared/app.js"></script>
 <script>
@@ -99,167 +54,688 @@
   if (!A) return;
   A.initChrome('submit');
 
-  var form = document.getElementById('expForm');
-  var fAmount = document.getElementById('fAmount');
-  var fDate = document.getElementById('fDate');
-  var fCategory = document.getElementById('fCategory');
-  var fMerchant = document.getElementById('fMerchant');
-  var fDesc = document.getElementById('fDesc');
-  var attachBtn = document.getElementById('attachBtn');
-  var attachEmpty = document.getElementById('attachEmpty');
-  var attachChip = document.getElementById('attachChip');
+  var st = A.getState();
+  var gate = document.getElementById('gate');
+  var wiz = document.getElementById('wizard');
+  var retPanel = document.getElementById('returnedPanel');
+  var myReq = document.getElementById('myRequests');
 
-  var receiptName = null;
+  var fixingId = null;      /* returned expense currently being fixed */
+  var docCounter = 1;
 
-  /* populate categories */
-  if (fCategory) {
-    A.CATEGORIES.forEach(function (c) {
-      var o = document.createElement('option');
-      o.value = c;
-      o.textContent = c;
-      fCategory.appendChild(o);
-    });
+  /* ---------- sample document templates for the simulated bulk upload ---------- */
+  var DOC_TEMPLATES = [
+    { type: 'receipt', vendor: 'Northside Supply Co', lines: [['Program supplies', 0]], base: [120, 320] },
+    { type: 'invoice', vendor: 'Maya Okafor', lines: [['Workshop facilitation', 0]], base: [300, 600] },
+    { type: 'invoice', vendor: 'Cedar Print Shop', lines: [['Printing and signage', 0]], base: [90, 260] },
+    { type: 'receipt', vendor: 'Riverside Fuel Stop', lines: [['Fuel', 0]], base: [40, 90] },
+    { type: 'invoice', vendor: 'Brightside Sound & Stage', lines: [['Equipment rental', 0]], base: [200, 520] },
+    { type: 'receipt', vendor: 'City Parking Authority', lines: [['Parking and tolls', 0]], base: [20, 65] }
+  ];
+
+  function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+
+  function sampleDoc() {
+    var t = DOC_TEMPLATES[Math.floor(Math.random() * DOC_TEMPLATES.length)];
+    var amt = A.round2(t.base[0] + Math.random() * (t.base[1] - t.base[0]));
+    /* roughly 1 in 5 sample docs is older than three months, to show the warning */
+    var back = Math.random() < 0.2 ? 95 + Math.floor(Math.random() * 30) : Math.floor(Math.random() * 75);
+    var d = new Date();
+    d.setDate(d.getDate() - back);
+    var dateIso = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    return {
+      name: t.type + '-' + slug(t.vendor) + '-' + (docCounter++) + '.pdf',
+      type: t.type,
+      vendor: t.vendor,
+      lines: [[t.lines[0][0], amt]],
+      total: amt,
+      date: dateIso
+    };
   }
 
-  /* default date = today */
-  if (fDate) fDate.value = A.todayIso();
+  function affidavitDoc() {
+    var amt = A.round2(20 + Math.random() * 80);
+    return {
+      name: 'lost-receipt-affidavit-' + (docCounter++) + '.pdf',
+      type: 'affidavit',
+      vendor: 'Lost/Missing Receipt Affidavit',
+      lines: [['Expense per affidavit', amt]],
+      total: amt,
+      date: A.todayIso()
+    };
+  }
 
-  /* --- fake receipt attach --- */
-  function renderAttach() {
-    if (!attachEmpty || !attachChip) return;
-    if (receiptName) {
-      attachEmpty.style.display = 'none';
-      attachChip.style.display = 'block';
-      attachChip.innerHTML = '<span class="chip"><span class="x">PDF</span>' + A.esc(receiptName) +
-        '<button type="button" class="rm" id="rmReceipt" aria-label="Remove receipt">&times;</button></span>';
-      var rm = document.getElementById('rmReceipt');
-      if (rm) rm.addEventListener('click', function () { receiptName = null; renderAttach(); });
-    } else {
-      attachEmpty.style.display = 'block';
-      attachChip.style.display = 'none';
-      attachChip.innerHTML = '';
+  /* ---------- draft lifecycle ---------- */
+
+  function draft() {
+    if (!st.draft) {
+      st.draft = { step: 1, docs: [], payeeIds: [], entries: [], cur: 0 };
+      A.save();
     }
-  }
-  if (attachBtn) {
-    attachBtn.addEventListener('click', function () {
-      receiptName = 'receipt-' + (1000 + Math.floor(Math.random() * 9000)) + '.pdf';
-      renderAttach();
-    });
+    return st.draft;
   }
 
-  /* --- validation --- */
-  function setErr(input, errId, msg) {
-    var el = document.getElementById(errId);
-    if (el) {
-      el.textContent = msg || '';
-      el.classList.toggle('show', !!msg);
-    }
-    if (input) input.classList.toggle('bad', !!msg);
-    return !msg;
-  }
+  function saveDraft() { A.save(); }
 
-  function parseAmount(v) {
-    var n = parseFloat(String(v || '').replace(/[$,\s]/g, ''));
-    return isFinite(n) ? n : NaN;
-  }
-
-  function validateAmount() {
-    var n = parseAmount(fAmount ? fAmount.value : '');
-    if (isNaN(n)) return setErr(fAmount, 'errAmount', 'Enter an amount, like 42.50.');
-    if (n <= 0) return setErr(fAmount, 'errAmount', 'Amount must be greater than zero.');
-    if (n > 25000) return setErr(fAmount, 'errAmount', 'Amounts over $25,000 need a purchase order, not an expense.');
-    return setErr(fAmount, 'errAmount', '');
-  }
-
-  function validateDate() {
-    var v = fDate ? fDate.value : '';
-    if (!v) return setErr(fDate, 'errDate', 'Pick the date of the expense.');
-    if (v > A.todayIso()) return setErr(fDate, 'errDate', 'Date cannot be in the future.');
-    return setErr(fDate, 'errDate', '');
-  }
-
-  function validateCategory() {
-    var v = fCategory ? fCategory.value : '';
-    if (!v) return setErr(fCategory, 'errCategory', 'Choose a category.');
-    return setErr(fCategory, 'errCategory', '');
-  }
-
-  function validateMerchant() {
-    var v = fMerchant ? fMerchant.value.trim() : '';
-    if (!v) return setErr(fMerchant, 'errMerchant', 'Enter the merchant name.');
-    return setErr(fMerchant, 'errMerchant', '');
-  }
-
-  /* clear errors as the user fixes them */
-  if (fAmount) fAmount.addEventListener('input', function () { if (fAmount.classList.contains('bad')) validateAmount(); });
-  if (fDate) fDate.addEventListener('change', function () { if (fDate.classList.contains('bad')) validateDate(); });
-  if (fCategory) fCategory.addEventListener('change', function () { if (fCategory.classList.contains('bad')) validateCategory(); });
-  if (fMerchant) fMerchant.addEventListener('input', function () { if (fMerchant.classList.contains('bad')) validateMerchant(); });
-
-  /* --- submit --- */
-  if (form) {
-    form.addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      var ok = validateAmount();
-      ok = validateDate() && ok;
-      ok = validateCategory() && ok;
-      ok = validateMerchant() && ok;
-      if (!ok) return;
-
-      var e = A.addExpense({
-        amount: parseAmount(fAmount.value),
-        date: fDate.value,
-        category: fCategory.value,
-        merchant: fMerchant.value.trim(),
-        description: fDesc ? fDesc.value.trim() : '',
-        receipt: receiptName
+  function syncEntries() {
+    var d = draft();
+    while (d.entries.length < d.docs.length) {
+      var idx = d.entries.length;
+      var doc = d.docs[idx];
+      d.entries.push({
+        payeeId: d.payeeIds.length === 1 ? d.payeeIds[0] : '',
+        date: doc.date || A.todayIso(),
+        amount: doc.total || 0,
+        allocations: [{ fsId: '', amount: doc.total || 0 }],
+        description: '',
+        comments: '',
+        months: null
       });
+    }
+    if (d.entries.length > d.docs.length) d.entries.length = d.docs.length;
+  }
 
-      /* reset form */
-      fAmount.value = '';
-      fDate.value = A.todayIso();
-      fCategory.value = '';
-      fMerchant.value = '';
-      if (fDesc) fDesc.value = '';
-      receiptName = null;
-      renderAttach();
+  /* remaining funds in a source, minus what the rest of this draft already allocates */
+  function draftRemaining(fsId, exceptEntry, exceptRow) {
+    var rem = A.fsAvailable(fsId);
+    var d = draft();
+    d.entries.forEach(function (en, ei) {
+      (en.allocations || []).forEach(function (al, ai) {
+        if (al.fsId !== fsId) return;
+        if (ei === exceptEntry && ai === exceptRow) return;
+        rem -= Number(al.amount) || 0;
+      });
+    });
+    return A.round2(rem);
+  }
 
-      renderMine();
-      A.showToast('Expense #' + e.num + ' submitted. Status: Pending.');
+  function entryProblems(en, ei) {
+    var probs = [];
+    if (!en.payeeId) probs.push('Choose who is being paid.');
+    if (!en.date) probs.push('Enter the date of the expense.');
+    var amt = Number(en.amount) || 0;
+    if (amt <= 0) probs.push('Enter a cost greater than zero.');
+    var sum = 0, hasFs = true, insufficient = false;
+    (en.allocations || []).forEach(function (al, ai) {
+      var v = Number(al.amount) || 0;
+      sum += v;
+      if (!al.fsId) hasFs = false;
+      else if (v > draftRemaining(al.fsId, ei, ai) + 0.001) insufficient = true;
+    });
+    if (!hasFs) probs.push('Pick a funding source for each allocation line.');
+    if (Math.abs(sum - amt) > 0.005) probs.push('Funding source allocations must add up to the cost (' + A.fmtMoney(amt) + ' vs ' + A.fmtMoney(sum) + ' allocated).');
+    if (insufficient) probs.push('Insufficient funds. Please allocate to a different funding source or contact an administrator.');
+    if (!String(en.description || '').trim()) probs.push('Add a description.');
+    return probs;
+  }
+
+  function entryDone(en, ei) { return entryProblems(en, ei).length === 0; }
+
+  /* ---------- shared bits ---------- */
+
+  function stepsBar(step) {
+    var labels = ['Upload documents', 'Payees', 'Expense details', 'Budget summary', 'Review & submit'];
+    return '<div class="steps">' + labels.map(function (l, i) {
+      var n = i + 1;
+      var cls = n === step ? 'on' : (n < step ? 'done' : '');
+      return '<span class="stp ' + cls + '"><span class="n">' + n + '</span>' + l + '</span>';
+    }).join('') + '</div>';
+  }
+
+  function fundingOptions(selected) {
+    var opts = '<option value="">Select a funding source...</option>';
+    A.fundingFor(A.CURRENT_FSO).forEach(function (f) {
+      if (A.fsAvailable(f.id) <= 0 && f.id !== selected) return;
+      var prj = A.project(f.projectId);
+      opts += '<option value="' + f.id + '"' + (f.id === selected ? ' selected' : '') + '>' +
+        A.esc(f.name + ' ' + f.year + ' (' + prj.name + ') - ' + A.fmtMoney0(A.fsAvailable(f.id)) + ' available') + '</option>';
+    });
+    return opts;
+  }
+
+  function payeeOptions(selected) {
+    var d = draft();
+    var opts = '<option value="">Select a payee...</option>';
+    A.payeesFor(A.CURRENT_FSO).forEach(function (p) {
+      if (d.payeeIds.indexOf(p.id) === -1) return;
+      opts += '<option value="' + p.id + '"' + (p.id === selected ? ' selected' : '') + '>' + A.esc(p.name) + '</option>';
+    });
+    return opts;
+  }
+
+  /* ---------- gate for non-FSO roles ---------- */
+
+  function renderGate() {
+    if (st.role === 'fso') { gate.innerHTML = ''; return false; }
+    gate.innerHTML = '<div class="card" style="margin-bottom:20px;"><div class="empty"><div class="big">The Payment Request portal is the FSO view</div>' +
+      'You are browsing as ' + A.esc(A.ROLE_META[st.role].label) + '. Switch to the FSO role to submit expenses as Jordan Reyes of Riverbend Youth Collective.<br><br>' +
+      '<button type="button" class="btn primary" id="switchFso">Switch to the FSO role</button></div></div>';
+    document.getElementById('switchFso').addEventListener('click', function () {
+      st.role = 'fso';
+      A.save();
+      document.body.setAttribute('data-role', 'fso');
+      var btns = document.querySelectorAll('.roleswitch button');
+      for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i].getAttribute('data-role') === 'fso');
+      renderAll();
+    });
+    return true;
+  }
+
+  /* ---------- returned-for-changes panel (review comments in red) ---------- */
+
+  function renderReturned() {
+    var returned = A.expensesFor(A.CURRENT_FSO).filter(function (e) { return e.status === 'returned'; });
+    if (st.role !== 'fso' || !returned.length) { retPanel.innerHTML = ''; return; }
+
+    if (fixingId) {
+      var e = A.findExpense(fixingId);
+      if (!e || e.status !== 'returned') { fixingId = null; }
+      else { renderFixer(e); return; }
+    }
+
+    retPanel.innerHTML = '<div class="card" style="margin-bottom:20px;">' +
+      '<div class="hd"><h2>Returned for changes</h2><span class="count">' + returned.length + ' request' + (returned.length === 1 ? '' : 's') + ' need your attention</span></div>' +
+      returned.map(function (e) {
+        return '<div class="qbrow"><span class="amt">' + A.fmtMoney(e.amount) + '</span>' +
+          '<div class="m"><div class="nm">#' + e.num + ' &middot; ' + A.esc(A.payeeName(e.payeeId)) + '</div>' +
+          '<div class="p">' + A.fmtDate(e.date) + ' &middot; ' + A.esc(e.description) + '</div></div>' +
+          '<button type="button" class="btn warn sm" data-fix="' + e.id + '">Review comments & fix</button></div>';
+      }).join('') +
+      '<div class="note">The review sent these back with comments. In the finished product you would also get an email notification; here that is simulated.</div></div>';
+
+    retPanel.querySelectorAll('[data-fix]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        fixingId = b.getAttribute('data-fix');
+        renderReturned();
+        retPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     });
   }
 
-  /* --- my submissions list --- */
-  function renderMine() {
-    var host = document.getElementById('mineList');
-    var count = document.getElementById('mineCount');
-    if (!host) return;
-
-    var mine = A.getState().expenses
-      .filter(function (e) { return e.employee === A.CURRENT_USER; })
-      .sort(function (a, b) {
-        if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-        return b.num - a.num;
-      });
-
-    if (count) count.textContent = mine.length + ' total';
-
-    if (!mine.length) {
-      host.innerHTML = '<div class="empty"><div class="big">Nothing submitted yet</div>Your expenses will appear here with a live status.</div>';
-      return;
+  function renderFixer(e) {
+    var fc = e.fieldComments || {};
+    function red(field) {
+      return fc[field] ? '<div class="redcomment">Reviewer: ' + A.esc(fc[field]) + '</div>' : '';
     }
+    retPanel.innerHTML = '<div class="card" style="margin-bottom:20px;">' +
+      '<div class="hd"><h2>Fix and resubmit #' + e.num + '</h2><span class="count">review comments are shown in red</span></div>' +
+      '<div class="workgrid" style="padding:16px;">' +
+        '<div class="doccard card" style="grid-column:1 / span 1;"><div id="fixDoc"></div></div>' +
+        '<div style="grid-column:2 / -1;">' +
+          '<div class="field"><label for="fixPayee">Who is being paid?</label>' +
+            '<select class="inp" id="fixPayee">' + A.payeesFor(A.CURRENT_FSO).map(function (p) {
+              return '<option value="' + p.id + '"' + (p.id === e.payeeId ? ' selected' : '') + '>' + A.esc(p.name) + '</option>';
+            }).join('') + '</select>' + red('payee') + '</div>' +
+          '<div class="row2"><div class="field"><label for="fixDate">Date of expense</label>' +
+            '<input class="inp" type="date" id="fixDate" value="' + e.date + '">' + red('date') + '</div>' +
+          '<div class="field"><label for="fixAmount">Cost (USD)</label>' +
+            '<input class="inp" id="fixAmount" inputmode="decimal" value="' + e.amount.toFixed(2) + '">' + red('cost') + '</div></div>' +
+          '<div class="field"><label for="fixDesc">Description</label>' +
+            '<textarea class="inp" id="fixDesc" rows="2">' + A.esc(e.description) + '</textarea>' + red('description') + '</div>' +
+          '<div class="field"><label for="fixComments">Additional comments (optional)</label>' +
+            '<textarea class="inp" id="fixComments" rows="2">' + A.esc(e.comments || '') + '</textarea>' + red('comments') + '</div>' +
+          (fc.coa ? '<div class="redcomment" style="margin-bottom:10px;">Reviewer (COA): ' + A.esc(fc.coa) + '</div>' : '') +
+          '<div class="wizbar" style="border-top:0;padding:0;">' +
+            '<button type="button" class="btn" id="fixCancel">Back to the list</button>' +
+            '<button type="button" class="btn primary grow" id="fixSubmit">Resubmit for review</button>' +
+          '</div>' +
+        '</div>' +
+      '</div></div>';
 
-    host.innerHTML = mine.map(function (e) {
-      var st = A.STATUS_META[e.status] || A.STATUS_META.pending;
-      return '<div class="mine">' +
-        '<span class="amt">' + A.fmtMoney(e.amount) + '</span>' +
-        '<div class="m2"><div class="nm">' + A.esc(e.merchant) + '</div>' +
-        '<div class="p">' + A.fmtDate(e.date) + ' &middot; ' + A.esc(e.category) + '</div></div>' +
-        '<span class="st ' + st.cls + '">' + st.label + '</span></div>';
+    A.renderDocPreview(document.getElementById('fixDoc'), e);
+    document.getElementById('fixCancel').addEventListener('click', function () { fixingId = null; renderReturned(); });
+    document.getElementById('fixSubmit').addEventListener('click', function () {
+      var amt = parseFloat(String(document.getElementById('fixAmount').value).replace(/[$,\s]/g, ''));
+      if (!isFinite(amt) || amt <= 0) { A.showToast('Enter a valid cost before resubmitting.'); return; }
+      var allocs = e.allocations && e.allocations.length
+        ? [{ fsId: e.allocations[0].fsId, amount: amt }]
+        : [];
+      A.resubmit(e.id, {
+        payeeId: document.getElementById('fixPayee').value,
+        date: document.getElementById('fixDate').value,
+        amount: amt,
+        allocations: allocs,
+        description: document.getElementById('fixDesc').value,
+        comments: document.getElementById('fixComments').value
+      });
+      fixingId = null;
+      A.showToast('#' + e.num + ' resubmitted. Status: Pending approval.');
+      renderAll();
+    });
+  }
+
+  /* ---------- wizard steps ---------- */
+
+  function renderWizard() {
+    if (st.role !== 'fso') { wiz.innerHTML = ''; return; }
+    var d = draft();
+    if (d.step === 1) renderStep1();
+    else if (d.step === 2) renderStep2();
+    else if (d.step === 3) renderStep3();
+    else if (d.step === 4) renderStep4();
+    else if (d.step === 5) renderStep5();
+    else if (d.step === 6) renderConfirm();
+  }
+
+  /* --- step 1: bulk document upload (simulated) --- */
+  function renderStep1() {
+    var d = draft();
+    var rows = d.docs.map(function (doc, i) {
+      return '<div class="docrow"><span class="x' + (doc.type === 'affidavit' ? ' aff' : '') + '">' +
+        (doc.type === 'affidavit' ? 'AFF' : 'PDF') + '</span>' +
+        '<span class="nm">' + A.esc(doc.name) + ' &middot; ' + A.esc(doc.vendor) + ' &middot; ' + A.fmtMoney(doc.total) + '</span>' +
+        '<button type="button" class="rm" data-rm="' + i + '" aria-label="Remove document">&times;</button></div>';
     }).join('');
+
+    wiz.innerHTML = stepsBar(1) +
+      '<div class="card"><div class="hd"><h2>Upload all documentation</h2><span class="count">' + d.docs.length + ' document' + (d.docs.length === 1 ? '' : 's') + '</span></div>' +
+      '<div class="form">' +
+        '<div class="up"><div style="margin-bottom:10px;">Bulk upload every receipt and invoice for this request. In this concept the upload is simulated: each click attaches a realistic sample document, nothing leaves your browser.</div>' +
+          '<button type="button" class="attachbtn" id="addDoc">Add a sample document</button></div>' +
+        (rows ? '<div class="doclist" style="margin-top:14px;">' + rows + '</div>' : '') +
+        '<div class="wbanner info" style="margin-top:16px;">Do you have any expenses to submit for which you are missing documentation? ' +
+          '<button type="button" class="btn sm" id="addAff" style="margin-left:auto;flex:none;">Yes, generate a Lost/Missing Receipt Affidavit</button></div>' +
+      '</div>' +
+      '<div class="wizbar"><span class="hint">Reviewed requests are typically turned around within two weeks.</span>' +
+        '<button type="button" class="btn primary grow" id="next1" ' + (d.docs.length ? '' : 'disabled') + '>Continue to payees</button></div></div>';
+
+    document.getElementById('addDoc').addEventListener('click', function () {
+      d.docs.push(sampleDoc());
+      saveDraft();
+      renderStep1();
+    });
+    document.getElementById('addAff').addEventListener('click', function () {
+      d.docs.push(affidavitDoc());
+      saveDraft();
+      A.showToast('Affidavit generated and added to your documents.');
+      renderStep1();
+    });
+    wiz.querySelectorAll('[data-rm]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var i = +b.getAttribute('data-rm');
+        d.docs.splice(i, 1);
+        if (d.entries.length > i) d.entries.splice(i, 1);
+        saveDraft();
+        renderStep1();
+      });
+    });
+    var nx = document.getElementById('next1');
+    if (nx) nx.addEventListener('click', function () { d.step = 2; saveDraft(); renderWizard(); });
   }
 
-  renderMine();
+  /* --- step 2: payees --- */
+  function renderStep2() {
+    var d = draft();
+    var payees = A.payeesFor(A.CURRENT_FSO);
+    var rows = payees.map(function (p) {
+      var sel = d.payeeIds.indexOf(p.id) !== -1;
+      return '<label class="pkrow' + (sel ? ' sel' : '') + '"><input type="checkbox" data-pk="' + p.id + '"' + (sel ? ' checked' : '') + '>' +
+        A.esc(p.name) + (p.isNew ? ' <span class="newtag">New payee</span>' : '') +
+        '<span class="kind">' + p.kind + '</span></label>';
+    }).join('');
+
+    wiz.innerHTML = stepsBar(2) +
+      '<div class="card"><div class="hd"><h2>Who will you be requesting payment for?</h2><span class="count">' + d.payeeIds.length + ' selected</span></div>' +
+      '<div class="form">' +
+        '<div class="pk">' + rows + '</div>' +
+        '<div class="field" style="margin-top:16px;"><label>Add a new payee</label>' +
+          '<div class="row2"><input class="inp" id="npName" placeholder="Payee name" autocomplete="off">' +
+          '<select class="inp" id="npKind"><option value="individual">Individual</option><option value="organization">Organization</option></select></div>' +
+          '<div class="hint">New payees require an MOU upload, and payment documentation is sent to the payee to complete by e-signature. Both are simulated in this concept.</div>' +
+          '<button type="button" class="btn sm" id="npAdd" style="margin-top:8px;">Add payee (uploads MOU, sends payment docs - simulated)</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="wizbar"><button type="button" class="btn" id="back2">Back</button>' +
+        '<button type="button" class="btn primary grow" id="next2" ' + (d.payeeIds.length ? '' : 'disabled') + '>Continue to expense details</button></div></div>';
+
+    wiz.querySelectorAll('[data-pk]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var id = cb.getAttribute('data-pk');
+        var i = d.payeeIds.indexOf(id);
+        if (cb.checked && i === -1) d.payeeIds.push(id);
+        if (!cb.checked && i !== -1) d.payeeIds.splice(i, 1);
+        saveDraft();
+        renderStep2();
+      });
+    });
+    document.getElementById('npAdd').addEventListener('click', function () {
+      var name = document.getElementById('npName').value.trim();
+      if (!name) { A.showToast('Enter the new payee name first.'); return; }
+      var p = A.addPayee(A.CURRENT_FSO, name, document.getElementById('npKind').value);
+      d.payeeIds.push(p.id);
+      saveDraft();
+      A.showToast('Payee added. MOU attached and payment documentation sent for e-signature (simulated).');
+      renderStep2();
+    });
+    document.getElementById('back2').addEventListener('click', function () { d.step = 1; saveDraft(); renderWizard(); });
+    var nx = document.getElementById('next2');
+    if (nx) nx.addEventListener('click', function () {
+      d.step = 3;
+      syncEntries();
+      if (d.payeeIds.length === 1) {
+        d.entries.forEach(function (en) { if (!en.payeeId) en.payeeId = d.payeeIds[0]; });
+      }
+      saveDraft();
+      renderWizard();
+    });
+  }
+
+  /* --- step 3: per-document data collection --- */
+  function renderStep3() {
+    var d = draft();
+    syncEntries();
+    if (d.cur >= d.docs.length) d.cur = 0;
+    var doc = d.docs[d.cur];
+    var en = d.entries[d.cur];
+
+    var railItems = d.docs.map(function (dc, i) {
+      var ok = entryDone(d.entries[i], i);
+      return '<button type="button" class="ritem' + (i === d.cur ? ' sel' : '') + '" data-goto="' + i + '">' +
+        '<span class="t1">' + A.esc(dc.name) + '<span class="dotst ' + (ok ? 'done' : 'todo') + '"></span></span>' +
+        '<span class="t2">' + A.esc(dc.vendor) + ' &middot; ' + A.fmtMoney(d.entries[i].amount || dc.total) + '</span></button>';
+    }).join('');
+
+    var allocRows = en.allocations.map(function (al, ai) {
+      return '<div class="allocrow">' +
+        '<select class="inp" data-alfs="' + ai + '">' + fundingOptions(al.fsId) + '</select>' +
+        '<input class="inp" data-alamt="' + ai + '" inputmode="decimal" value="' + (al.amount ? Number(al.amount).toFixed(2) : '') + '" placeholder="0.00">' +
+        (en.allocations.length > 1 ? '<button type="button" class="rm" data-alrm="' + ai + '" aria-label="Remove split">&times;</button>' : '<span></span>') +
+        '</div>';
+    }).join('');
+
+    var probs = entryProblems(en, d.cur);
+    var oldWarn = en.date && A.daysOld(en.date) > 92
+      ? '<div class="wbanner warn">Date is older than three months and may not be eligible for payment.</div>' : '';
+    var insufficient = probs.some(function (p) { return p.indexOf('Insufficient funds') === 0; })
+      ? '<div class="wbanner crit">Insufficient funds. Please allocate to a different funding source or contact an administrator.</div>' : '';
+    var allDone = d.entries.every(function (e2, i2) { return entryDone(e2, i2); });
+
+    var monthsBlock = '';
+    if (en.months) {
+      monthsBlock = en.months.map(function (m, mi) {
+        return '<div class="allocrow">' +
+          '<input class="inp" type="month" data-mmon="' + mi + '" value="' + m.month + '">' +
+          '<input class="inp" data-mamt="' + mi + '" inputmode="decimal" value="' + (m.amount ? Number(m.amount).toFixed(2) : '') + '" placeholder="0.00">' +
+          '<button type="button" class="rm" data-mrm="' + mi + '" aria-label="Remove month">&times;</button></div>';
+      }).join('') +
+      '<button type="button" class="addalloc" id="addMonth">Add another month</button>';
+    }
+
+    wiz.innerHTML = stepsBar(3) +
+      '<div class="workgrid">' +
+      '<div class="card rail"><div class="railhd">All entries (' + d.docs.length + ')</div>' +
+        '<div class="railbody">' + railItems + '</div>' +
+        '<div class="railft"><button type="button" class="btn sm" id="saveProg" style="width:100%;">Save progress</button></div></div>' +
+
+      '<div class="card doccard"><div class="railhd">Document ' + (d.cur + 1) + ' of ' + d.docs.length + '</div><div id="docPrev"></div></div>' +
+
+      '<div class="card"><div class="railhd">Data collection</div><div class="form">' +
+        '<div class="field"><label for="enPayee">Who is being paid?</label>' +
+          (d.payeeIds.length === 1
+            ? '<div class="inp" style="background:#f1f5f9;">' + A.esc(A.payeeName(d.payeeIds[0])) + '</div>' +
+              '<div class="hint">Auto-populated: only one payee was selected.</div>'
+            : '<select class="inp" id="enPayee">' + payeeOptions(en.payeeId) + '</select>') + '</div>' +
+        '<div class="field"><label for="enDate">Date of expense</label>' +
+          '<input class="inp" type="date" id="enDate" value="' + (en.date || '') + '">' +
+          '<div class="hint">For reimbursements for material purchases, the date the transaction was made. For work done, the date the work was completed.</div>' +
+          '<label style="display:flex;align-items:center;gap:8px;margin-top:8px;text-transform:none;letter-spacing:normal;font-weight:600;font-size:12.5px;color:#475569;cursor:pointer;">' +
+            '<input type="checkbox" id="enSplitMonths"' + (en.months ? ' checked' : '') + ' style="width:15px;height:15px;accent-color:#0891b2;">Break this expense out over multiple months</label>' +
+          (monthsBlock ? '<div class="alloc" style="margin-top:8px;">' + monthsBlock + '</div>' : '') +
+          oldWarn + '</div>' +
+        '<div class="field"><label for="enAmount">Cost (USD)</label>' +
+          '<input class="inp big" id="enAmount" inputmode="decimal" value="' + (en.amount ? Number(en.amount).toFixed(2) : '') + '" placeholder="0.00"></div>' +
+        '<div class="field"><label>To which funding source</label>' +
+          '<div class="alloc">' + allocRows +
+          '<button type="button" class="addalloc" id="addAlloc">Split between funding sources</button></div>' +
+          insufficient + '</div>' +
+        '<div class="field"><label for="enDesc">Description</label>' +
+          '<textarea class="inp" id="enDesc" rows="2">' + A.esc(en.description) + '</textarea>' +
+          '<div class="hint">Please share what the expense is and how it was used to support your programming.</div></div>' +
+        '<div class="field"><label for="enComments">Additional comments (optional)</label>' +
+          '<textarea class="inp" id="enComments" rows="2">' + A.esc(en.comments) + '</textarea></div>' +
+      '</div>' +
+      '<div class="wizbar">' +
+        '<button type="button" class="btn" id="back3">Back</button>' +
+        '<button type="button" class="btn" id="prevDoc" ' + (d.cur > 0 ? '' : 'disabled') + '>Previous</button>' +
+        '<button type="button" class="btn" id="nextDoc" ' + (d.cur < d.docs.length - 1 ? '' : 'disabled') + '>Next document</button>' +
+        '<button type="button" class="btn primary grow" id="next3" ' + (allDone ? '' : 'disabled') + '>Continue to budget summary</button>' +
+      '</div></div></div>';
+
+    A.renderDocPreview(document.getElementById('docPrev'), { doc: doc, amount: Number(en.amount) || doc.total, date: en.date, payeeId: en.payeeId });
+
+    function bind(id, ev, fn) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener(ev, fn);
+    }
+
+    wiz.querySelectorAll('[data-goto]').forEach(function (b) {
+      b.addEventListener('click', function () { d.cur = +b.getAttribute('data-goto'); saveDraft(); renderStep3(); });
+    });
+    bind('saveProg', 'click', function () { saveDraft(); A.showToast('Progress saved. You can leave and come back any time.'); });
+    bind('enPayee', 'change', function (e2) { en.payeeId = e2.target.value; saveDraft(); renderStep3(); });
+    bind('enDate', 'change', function (e2) { en.date = e2.target.value; saveDraft(); renderStep3(); });
+    bind('enAmount', 'change', function (e2) {
+      var v = parseFloat(String(e2.target.value).replace(/[$,\s]/g, ''));
+      en.amount = isFinite(v) ? A.round2(v) : 0;
+      if (en.allocations.length === 1) en.allocations[0].amount = en.amount;
+      saveDraft(); renderStep3();
+    });
+    bind('enDesc', 'change', function (e2) { en.description = e2.target.value; saveDraft(); renderStep3(); });
+    bind('enComments', 'change', function (e2) { en.comments = e2.target.value; saveDraft(); });
+    bind('enSplitMonths', 'change', function (e2) {
+      if (e2.target.checked) {
+        var mk = A.monthKey(en.date || A.todayIso());
+        en.months = [{ month: mk, amount: en.amount }];
+      } else en.months = null;
+      saveDraft(); renderStep3();
+    });
+    bind('addMonth', 'click', function () {
+      en.months.push({ month: A.monthKey(A.todayIso()), amount: 0 });
+      saveDraft(); renderStep3();
+    });
+    wiz.querySelectorAll('[data-mmon]').forEach(function (inp) {
+      inp.addEventListener('change', function () { en.months[+inp.getAttribute('data-mmon')].month = inp.value; saveDraft(); });
+    });
+    wiz.querySelectorAll('[data-mamt]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var v = parseFloat(String(inp.value).replace(/[$,\s]/g, ''));
+        en.months[+inp.getAttribute('data-mamt')].amount = isFinite(v) ? A.round2(v) : 0;
+        saveDraft();
+      });
+    });
+    wiz.querySelectorAll('[data-mrm]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        en.months.splice(+b.getAttribute('data-mrm'), 1);
+        if (!en.months.length) en.months = null;
+        saveDraft(); renderStep3();
+      });
+    });
+    bind('addAlloc', 'click', function () {
+      en.allocations.push({ fsId: '', amount: 0 });
+      saveDraft(); renderStep3();
+    });
+    wiz.querySelectorAll('[data-alfs]').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        en.allocations[+sel.getAttribute('data-alfs')].fsId = sel.value;
+        saveDraft(); renderStep3();
+      });
+    });
+    wiz.querySelectorAll('[data-alamt]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var v = parseFloat(String(inp.value).replace(/[$,\s]/g, ''));
+        en.allocations[+inp.getAttribute('data-alamt')].amount = isFinite(v) ? A.round2(v) : 0;
+        saveDraft(); renderStep3();
+      });
+    });
+    wiz.querySelectorAll('[data-alrm]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        en.allocations.splice(+b.getAttribute('data-alrm'), 1);
+        saveDraft(); renderStep3();
+      });
+    });
+    bind('back3', 'click', function () { d.step = 2; saveDraft(); renderWizard(); });
+    bind('prevDoc', 'click', function () { if (d.cur > 0) { d.cur--; saveDraft(); renderStep3(); } });
+    bind('nextDoc', 'click', function () { if (d.cur < d.docs.length - 1) { d.cur++; saveDraft(); renderStep3(); } });
+    var nx = document.getElementById('next3');
+    if (nx) nx.addEventListener('click', function () { d.step = 4; saveDraft(); renderWizard(); });
+  }
+
+  /* --- step 4: budget summary, before and after --- */
+  function renderStep4() {
+    var d = draft();
+    var touched = {};
+    d.entries.forEach(function (en) {
+      en.allocations.forEach(function (al) {
+        if (al.fsId) touched[al.fsId] = (touched[al.fsId] || 0) + (Number(al.amount) || 0);
+      });
+    });
+
+    var host = document.createElement('div');
+    var ids = Object.keys(touched);
+    wiz.innerHTML = stepsBar(4) +
+      '<div class="card"><div class="hd"><h2>Budget summary</h2><span class="count">before on top, after underneath, this request highlighted</span></div>' +
+      '<div id="budgetBars"></div>' +
+      '<div class="hkey">' +
+        '<span class="k"><span class="sw" style="background:#64748b;"></span>Already spent or committed</span>' +
+        '<span class="k"><span class="sw" style="background:#0891b2;"></span>This request</span>' +
+        '<span class="k"><span class="sw" style="background:#eef2f7;border:1px solid #e2e8f0;"></span>Available</span></div>' +
+      '<div class="wizbar"><button type="button" class="btn" id="back4">Back to details</button>' +
+        '<button type="button" class="btn primary grow" id="next4">Continue to review & submit</button></div></div>';
+
+    var rows = [];
+    ids.forEach(function (fsId) {
+      var fs = A.fundingSource(fsId);
+      var committed = A.round2(A.fsCommitted(fsId) + A.priorSpendTotal(fs));
+      var add = A.round2(touched[fsId]);
+      rows.push({
+        label: fs.name + ' ' + fs.year + ' (before)',
+        sub: A.project(fs.projectId).name,
+        right: A.fmtMoney0(fs.total - committed) + ' available of ' + A.fmtMoney0(fs.total),
+        max: fs.total,
+        segments: [{ value: committed, color: '#64748b', title: 'Spent or committed' }]
+      });
+      rows.push({
+        label: fs.name + ' ' + fs.year + ' (after)',
+        sub: 'includes this request',
+        right: A.fmtMoney0(fs.total - committed - add) + ' available of ' + A.fmtMoney0(fs.total),
+        max: fs.total,
+        segments: [
+          { value: committed, color: '#64748b', title: 'Spent or committed' },
+          { value: add, color: '#0891b2', title: 'This request' }
+        ]
+      });
+    });
+    var bx = document.getElementById('budgetBars');
+    bx.className = 'hbars';
+    A.renderHBars(bx, rows);
+
+    document.getElementById('back4').addEventListener('click', function () { d.step = 3; saveDraft(); renderWizard(); });
+    document.getElementById('next4').addEventListener('click', function () { d.step = 5; saveDraft(); renderWizard(); });
+  }
+
+  /* --- step 5: submission summary --- */
+  function renderStep5() {
+    var d = draft();
+    var byPayee = {};
+    var total = 0;
+    d.entries.forEach(function (en) {
+      byPayee[en.payeeId] = (byPayee[en.payeeId] || 0) + (Number(en.amount) || 0);
+      total += Number(en.amount) || 0;
+    });
+    var rows = Object.keys(byPayee).map(function (pid) {
+      var p = A.payee(pid);
+      return '<tr><td class="who2">' + A.esc(A.payeeName(pid)) + (p && p.isNew ? ' <span class="newtag">New payee</span>' : '') + '</td>' +
+        '<td>' + (p ? p.kind : '') + '</td><td class="amtc">' + A.fmtMoney(byPayee[pid]) + '</td></tr>';
+    }).join('');
+
+    wiz.innerHTML = stepsBar(5) +
+      '<div class="card"><div class="hd"><h2>Submission summary</h2><span class="count">' + d.entries.length + ' expense' + (d.entries.length === 1 ? '' : 's') + ', ' + A.fmtMoney(total) + ' total</span></div>' +
+      '<div class="tablewrap"><table><thead><tr><th>Payee</th><th>Type</th><th>Total requested</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '<tfoot><tr class="tot"><td colspan="2">Total</td><td class="amtc">' + A.fmtMoney(total) + '</td></tr></tfoot></table></div>' +
+      '<div class="form"><div class="wbanner info">Would you like to submit your request? Submitting sends every expense to the review queue as Pending approval.</div></div>' +
+      '<div class="wizbar"><button type="button" class="btn" id="back5">No, go back to the details</button>' +
+        '<button type="button" class="btn primary grow" id="doSubmit">Yes, submit my request</button></div></div>';
+
+    document.getElementById('back5').addEventListener('click', function () { d.step = 3; saveDraft(); renderWizard(); });
+    document.getElementById('doSubmit').addEventListener('click', function () {
+      var entries = d.entries.map(function (en, i) {
+        var firstFs = A.fundingSource(en.allocations[0].fsId);
+        return {
+          payeeId: en.payeeId,
+          projectId: firstFs ? firstFs.projectId : null,
+          date: en.date,
+          amount: Number(en.amount) || 0,
+          allocations: en.allocations,
+          description: en.description,
+          comments: en.comments,
+          months: en.months,
+          doc: { type: d.docs[i].type, vendor: d.docs[i].vendor, name: d.docs[i].name, lines: d.docs[i].lines }
+        };
+      });
+      var made = A.submitRequest(entries);
+      st.draft = { step: 6, docs: [], payeeIds: [], entries: [], cur: 0, lastCount: made.length, lastTotal: total };
+      A.save();
+      renderAll();
+    });
+  }
+
+  /* --- confirmation --- */
+  function renderConfirm() {
+    var d = draft();
+    wiz.innerHTML = '<div class="card"><div class="empty" style="padding:48px 24px;">' +
+      '<div class="big" style="font-size:17px;color:#059669;">Your request has been submitted.</div>' +
+      'Please allow up to eight business days for payment to be completed.<br>' +
+      (d.lastCount ? d.lastCount + ' expense' + (d.lastCount === 1 ? '' : 's') + ' totaling ' + A.fmtMoney(d.lastTotal || 0) + ' are now Pending approval.<br>' : '') +
+      '<span class="hint">Any issues raised by the review will create email notifications (simulated here) and the affected expenses will reappear above with the review comments shown in red.</span><br><br>' +
+      '<button type="button" class="btn primary" id="again">Start another request</button> ' +
+      '<a class="btn" href="tracking.html" style="display:inline-block;">See it in Tracking</a>' +
+      '</div></div>';
+    document.getElementById('again').addEventListener('click', function () {
+      st.draft = null;
+      A.save();
+      renderAll();
+    });
+  }
+
+  /* ---------- my recent requests ---------- */
+
+  function renderMine() {
+    if (st.role !== 'fso') { myReq.innerHTML = ''; return; }
+    var mine = A.expensesFor(A.CURRENT_FSO).slice().sort(function (a, b) {
+      if (a.submittedAt !== b.submittedAt) return a.submittedAt < b.submittedAt ? 1 : -1;
+      return b.num - a.num;
+    }).slice(0, 8);
+    if (!mine.length) { myReq.innerHTML = ''; return; }
+
+    myReq.innerHTML = '<div class="card" style="margin-top:20px;"><div class="hd"><h2>My recent requests</h2><span class="count">status trail on every expense</span></div>' +
+      mine.map(function (e) {
+        var stm = A.STATUS_META[e.status];
+        var hist = e.history.map(function (h) {
+          return '<div class="h"><span class="hd2">' + A.fmtDate(h.ts) + '</span><span class="hb"><b>' + A.esc(h.actor) + '</b> ' + A.esc(h.action) +
+            (h.note ? '<span class="note">' + A.esc(h.note) + '</span>' : '') + '</span></div>';
+        }).join('');
+        return '<details><summary class="qbrow" style="cursor:pointer;list-style:none;">' +
+          '<span class="amt">' + A.fmtMoney(e.amount) + '</span>' +
+          '<div class="m"><div class="nm">#' + e.num + ' &middot; ' + A.esc(A.payeeName(e.payeeId)) + '</div>' +
+          '<div class="p">' + A.fmtDate(e.date) + ' &middot; ' + A.esc(e.description || e.doc.name) + '</div></div>' +
+          '<span class="st ' + stm.cls + '">' + stm.label + '</span></summary>' +
+          '<div class="hist" style="background:#f8fafc;border-top:1px solid #f1f5f9;">' + hist + '</div></details>';
+      }).join('') + '</div>';
+  }
+
+  /* ---------- page assembly ---------- */
+
+  function renderAll() {
+    st = A.getState();
+    renderGate();
+    renderReturned();
+    renderWizard();
+    renderMine();
+  }
+
+  renderAll();
+  document.addEventListener('rolechange', renderAll);
 })();
 </script>
 </body>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExpenseFlow (Concept) - Bookkeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+
+<div class="banner"><b>INTERACTIVE CONCEPT</b> - A working sample built for this proposal. Sample data only, stored in your browser. Not the final product.</div>
+
+<header class="top">
+  <a class="logo" href="index.html"><span class="mark">E</span> ExpenseFlow <span class="tagc">(Concept)</span></a>
+  <nav class="nav" aria-label="Main">
+    <a href="index.html" data-page="dashboard">Dashboard<span class="dot"></span></a>
+    <a href="submit.html" data-page="submit">Payment Request<span class="dot"></span></a>
+    <a href="review.html" data-page="review">Review<span class="dot"></span></a>
+    <a href="tracking.html" data-page="tracking">Tracking<span class="dot"></span></a>
+    <a href="bookkeeper.html" data-page="bookkeeper">Bookkeeper<span class="dot"></span></a>
+  </nav>
+  <div class="right">
+    <div class="roleswitch" role="group" aria-label="Demo role">
+      <button type="button" data-role="fso">FSO</button>
+      <button type="button" data-role="admin">Admin</button>
+      <button type="button" data-role="bookkeeper">Bookkeeper</button>
+    </div>
+    <span class="who">JR</span>
+  </div>
+</header>
+
+<main class="wrap view-in">
+  <div class="pagehead">
+    <h1>Bookkeeper</h1>
+    <p class="lede">The last two boxes of the process map: approved expenses arrive here as a report to be added to QuickBooks, and received income is recorded per project. The QuickBooks entries and the Google Drive folder below are simulated and labeled as such; the real integration is scoped collaboratively in the proposal.</p>
+  </div>
+
+  <div id="gate"></div>
+  <div id="bkApp"></div>
+</main>
+
+<footer class="foot">ExpenseFlow (Concept) &middot; Fictional sample FSOs and grants, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
+
+<script src="shared/app.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ExpenseApp;
+  if (!A) return;
+  A.initChrome('bookkeeper');
+
+  var st = A.getState();
+  var gate = document.getElementById('gate');
+  var app = document.getElementById('bkApp');
+
+  function renderGate() {
+    if (st.role === 'bookkeeper' || st.role === 'admin') { gate.innerHTML = ''; return false; }
+    gate.innerHTML = '<div class="card" style="margin-bottom:20px;"><div class="empty"><div class="big">This is the bookkeeper view</div>' +
+      'You are browsing as ' + A.esc(A.ROLE_META[st.role].label) + '. Switch to the Bookkeeper role to work the QuickBooks report as Sam Whitfield.<br><br>' +
+      '<button type="button" class="btn primary" id="switchBk">Switch to the Bookkeeper role</button></div></div>';
+    document.getElementById('switchBk').addEventListener('click', function () {
+      st.role = 'bookkeeper';
+      A.save();
+      document.body.setAttribute('data-role', 'bookkeeper');
+      var btns = document.querySelectorAll('.roleswitch button');
+      for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i].getAttribute('data-role') === 'bookkeeper');
+      renderAll();
+    });
+    return true;
+  }
+
+  /* ---------- QuickBooks report queue ---------- */
+
+  function renderQb() {
+    var queued = st.expenses.filter(function (e) { return e.status === 'approved' && e.qb === 'queued'; });
+    var synced = st.expenses.filter(function (e) { return e.status === 'approved' && e.qb === 'synced'; })
+      .sort(function (a, b) { return (a.qbTs || '') < (b.qbTs || '') ? 1 : -1; });
+
+    function row(e, showBtn) {
+      var f = A.fso(e.fsoId);
+      var c = A.coaItem(e.coaId);
+      return '<div class="qbrow"><span class="amt">' + A.fmtMoney(e.amount) + '</span>' +
+        '<div class="m"><div class="nm">#' + e.num + ' &middot; ' + A.esc(A.payeeName(e.payeeId)) + ' &middot; ' + A.esc(f ? f.name : '') + '</div>' +
+        '<div class="p">' + A.fmtDate(e.date) + ' &middot; ' + (c ? c.id + ' ' + A.esc(c.label) : 'no COA') + ' &middot; ' + A.esc(e.description) + '</div></div>' +
+        (showBtn
+          ? '<button type="button" class="btn ok sm" data-sync="' + e.id + '">Mark added to QuickBooks (simulated)</button>'
+          : '<span class="st approved">Added ' + A.fmtDate(e.qbTs) + '</span>') +
+        '</div>';
+    }
+
+    var totQueued = 0;
+    queued.forEach(function (e) { totQueued += e.amount; });
+
+    var html = '<div class="card" style="margin-bottom:20px;">' +
+      '<div class="hd"><h2>Report of expenses to be added to QuickBooks</h2><span class="count">' + queued.length + ' waiting &middot; ' + A.fmtMoney(totQueued) + '</span></div>' +
+      (queued.length ? queued.map(function (e) { return row(e, true); }).join('')
+        : '<div class="empty"><div class="big">Nothing waiting</div>Approve an expense in Review and it appears here immediately.</div>') +
+      (queued.length ? '<div class="rep" style="border-top:1px solid #e2e8f0;">' +
+        '<span class="grow"></span>' +
+        '<button type="button" class="expbtn" id="qbXls"><span class="ic">XLS</span>Export this report for QuickBooks entry</button></div>' : '') +
+      '<div class="note">In this concept, QuickBooks entries are simulated status changes. The proposal scopes the real sync (QuickBooks Online API or Desktop import, whichever you run) as a collaborative, verify-first milestone.</div></div>';
+
+    html += '<div class="card" style="margin-bottom:20px;">' +
+      '<div class="hd"><h2>Already in QuickBooks (simulated)</h2><span class="count">' + synced.length + ' recorded</span></div>' +
+      (synced.length ? synced.map(function (e) { return row(e, false); }).join('')
+        : '<div class="empty">No entries recorded yet.</div>') + '</div>';
+
+    return html;
+  }
+
+  /* ---------- received income per project ---------- */
+
+  function renderIncome() {
+    var rows = st.income.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).map(function (inc) {
+      var p = A.project(inc.projectId);
+      var f = A.fundingSource(inc.fsId);
+      return '<div class="qbrow"><span class="amt">' + A.fmtMoney(inc.amount) + '</span>' +
+        '<div class="m"><div class="nm">' + A.esc(p ? p.name : 'Unknown project') + '</div>' +
+        '<div class="p">' + A.fmtDate(inc.date) + ' &middot; ' + A.esc(f ? f.name + ' ' + f.year : '') + (inc.note ? ' &middot; ' + A.esc(inc.note) : '') + '</div></div></div>';
+    }).join('');
+
+    var projOpts = st.projects.filter(function (p) { return p.active; }).map(function (p) {
+      var f = A.fso(p.fsoId);
+      return '<option value="' + p.id + '">' + A.esc(p.name + ' (' + (f ? f.name : '') + ')') + '</option>';
+    }).join('');
+
+    return '<div class="card" style="margin-bottom:20px;">' +
+      '<div class="hd"><h2>Received income per project</h2><span class="count">' + st.income.length + ' entries</span></div>' +
+      (rows || '<div class="empty">No income recorded yet.</div>') +
+      '<div class="form" style="border-top:1px solid #e2e8f0;">' +
+        '<div class="row2"><div class="field"><label for="incProj">Project</label><select class="inp" id="incProj">' + projOpts + '</select></div>' +
+        '<div class="field"><label for="incFs">Funding source</label><select class="inp" id="incFs"></select></div></div>' +
+        '<div class="row2"><div class="field"><label for="incAmt">Amount (USD)</label><input class="inp" id="incAmt" inputmode="decimal" placeholder="0.00"></div>' +
+        '<div class="field"><label for="incDate">Date received</label><input class="inp" type="date" id="incDate" value="' + A.todayIso() + '"></div></div>' +
+        '<div class="field"><label for="incNote">Note (optional)</label><input class="inp" id="incNote" placeholder="Grant installment, program fee income..."></div>' +
+        '<button type="button" class="btn primary" id="incAdd">Record income</button>' +
+        '<div class="hint" style="margin-top:8px;">Per the process map, the bookkeeper sends this report back so project budgets in Tracking reflect received income.</div>' +
+      '</div></div>';
+  }
+
+  function fillIncomeFs() {
+    var projSel = document.getElementById('incProj');
+    var fsSel = document.getElementById('incFs');
+    if (!projSel || !fsSel) return;
+    function fill() {
+      var srcs = A.fundingForProject(projSel.value);
+      fsSel.innerHTML = srcs.map(function (f) {
+        return '<option value="' + f.id + '">' + A.esc(f.name + ' ' + f.year) + '</option>';
+      }).join('');
+    }
+    projSel.addEventListener('change', fill);
+    fill();
+  }
+
+  /* ---------- simulated Google Drive folder ---------- */
+
+  function renderDrive() {
+    var tree = {};
+    st.expenses.forEach(function (e) {
+      if (e.status === 'rejected') return;
+      var f = A.fso(e.fsoId);
+      var p = A.project(e.projectId);
+      var ym = A.monthKey(e.date);
+      var k1 = f ? f.name : 'Unknown FSO';
+      var k2 = p ? p.name : 'Unknown project';
+      tree[k1] = tree[k1] || {};
+      tree[k1][k2] = tree[k1][k2] || {};
+      (tree[k1][k2][ym] = tree[k1][k2][ym] || []).push(e);
+    });
+
+    var html = '<div class="tree"><div class="folder"><div class="fname"><span class="fico"></span>ExpenseFlow Records (simulated Google Drive)</div><div class="kids">';
+    Object.keys(tree).sort().forEach(function (fsoName) {
+      html += '<div class="folder"><div class="fname"><span class="fico"></span>' + A.esc(fsoName) + '</div><div class="kids">';
+      Object.keys(tree[fsoName]).sort().forEach(function (prjName) {
+        html += '<div class="folder"><div class="fname"><span class="fico"></span>' + A.esc(prjName) + '</div><div class="kids">';
+        Object.keys(tree[fsoName][prjName]).sort().reverse().forEach(function (ym) {
+          html += '<div class="folder"><div class="fname"><span class="fico"></span>' + A.monthLabel(ym) + '</div><div class="kids">';
+          tree[fsoName][prjName][ym].forEach(function (e) {
+            html += '<div class="file"><span class="doc"></span><b>' + A.esc(e.doc.name) + '</b> &middot; #' + e.num + ' &middot; ' + A.fmtMoney(e.amount) + '</div>';
+          });
+          html += '</div></div>';
+        });
+        html += '</div></div>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div></div></div>';
+
+    return '<div class="card">' +
+      '<div class="hd"><h2>Organized records folder (simulated)</h2><span class="count">FSO / project / month</span></div>' + html +
+      '<div class="note">This shows how every submission would land as an organized record in your Google Drive: one folder per FSO, per project, per month. In this concept the tree is generated from the sample data; the real build writes the actual uploaded files via the Drive API.</div></div>';
+  }
+
+  /* ---------- assemble ---------- */
+
+  function renderAll() {
+    st = A.getState();
+    if (renderGate()) { app.innerHTML = ''; return; }
+    app.innerHTML = renderQb() + renderIncome() + renderDrive();
+
+    app.querySelectorAll('[data-sync]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var e = A.markSynced(b.getAttribute('data-sync'));
+        if (e) A.showToast('#' + e.num + ' marked as added to QuickBooks (simulated).');
+        renderAll();
+      });
+    });
+
+    var qbXls = document.getElementById('qbXls');
+    if (qbXls) qbXls.addEventListener('click', function () {
+      var queued = st.expenses.filter(function (e) { return e.status === 'approved' && e.qb === 'queued'; });
+      var rows = queued.map(function (e) {
+        var c = A.coaItem(e.coaId);
+        var f = A.fso(e.fsoId);
+        var p = A.project(e.projectId);
+        return ['#' + e.num, e.date, f ? f.name : '', p ? p.name : '', A.payeeName(e.payeeId), e.description,
+          c ? c.id + ' ' + c.label : '', e.amount];
+      });
+      A.exportExcel('QuickBooks entry', ['Ref', 'Date', 'FSO', 'Project', 'Payee', 'Description', 'COA', 'Amount'], rows,
+        'quickbooks-entry-report-' + A.todayIso() + '.xls');
+      A.showToast('Report downloaded (.xls, generated in your browser).');
+    });
+
+    var incAdd = document.getElementById('incAdd');
+    if (incAdd) {
+      fillIncomeFs();
+      incAdd.addEventListener('click', function () {
+        var amt = parseFloat(String(document.getElementById('incAmt').value).replace(/[$,\s]/g, ''));
+        if (!isFinite(amt) || amt <= 0) { A.showToast('Enter a valid income amount.'); return; }
+        var date = document.getElementById('incDate').value || A.todayIso();
+        A.addIncome(document.getElementById('incProj').value, document.getElementById('incFs').value, amt, date,
+          document.getElementById('incNote').value);
+        A.showToast('Income recorded for the project.');
+        renderAll();
+      });
+    }
+  }
+
+  renderAll();
+  document.addEventListener('rolechange', renderAll);
+})();
+</script>
+</body>
+</html>

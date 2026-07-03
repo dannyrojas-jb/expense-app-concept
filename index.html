@@ -17,34 +17,31 @@
   <a class="logo" href="index.html"><span class="mark">E</span> ExpenseFlow <span class="tagc">(Concept)</span></a>
   <nav class="nav" aria-label="Main">
     <a href="index.html" data-page="dashboard">Dashboard<span class="dot"></span></a>
-    <a href="submit.html" data-page="submit">Submit<span class="dot"></span></a>
+    <a href="submit.html" data-page="submit">Payment Request<span class="dot"></span></a>
     <a href="review.html" data-page="review">Review<span class="dot"></span></a>
-    <a href="reports.html" data-page="reports">Reports<span class="dot"></span></a>
+    <a href="tracking.html" data-page="tracking">Tracking<span class="dot"></span></a>
+    <a href="bookkeeper.html" data-page="bookkeeper">Bookkeeper<span class="dot"></span></a>
   </nav>
   <div class="right">
     <div class="roleswitch" role="group" aria-label="Demo role">
-      <button type="button" data-role="employee">Employee</button>
-      <button type="button" data-role="admin">Finance Admin</button>
+      <button type="button" data-role="fso">FSO</button>
+      <button type="button" data-role="admin">Admin</button>
+      <button type="button" data-role="bookkeeper">Bookkeeper</button>
     </div>
-    <span class="who" title="Jordan Reyes (demo user)">JR</span>
+    <span class="who">JR</span>
   </div>
 </header>
 
 <main class="wrap view-in">
   <div class="pagehead">
     <h1>Dashboard</h1>
-    <p class="lede">A live picture of company spend. Every number on this page is computed from the sample expenses in your browser, so anything you submit or approve shows up here immediately.</p>
+    <p class="lede" id="lede">A live picture of program spend. Every number is computed from the sample data in your browser, so anything you submit, review, or record shows up here immediately.</p>
   </div>
 
   <section class="tiles" aria-label="Key metrics">
-    <div class="tile">
-      <div class="n" id="kpiSpend">--</div>
-      <div class="l">Spend this month</div>
-      <div class="s" id="kpiSpendSub"></div>
-    </div>
     <div class="tile warn">
       <div class="n" id="kpiPending">--</div>
-      <div class="l">Pending approvals</div>
+      <div class="l">Pending approval</div>
       <div class="s" id="kpiPendingSub"></div>
     </div>
     <div class="tile ok">
@@ -53,8 +50,13 @@
       <div class="s" id="kpiApprovedSub"></div>
     </div>
     <div class="tile">
+      <div class="n" id="kpiAvail">--</div>
+      <div class="l">Available funds</div>
+      <div class="s" id="kpiAvailSub"></div>
+    </div>
+    <div class="tile">
       <div class="n" id="kpiAvg">--</div>
-      <div class="l">Avg processing time</div>
+      <div class="l">Avg turnaround</div>
       <div class="s" id="kpiAvgSub"></div>
     </div>
   </section>
@@ -65,7 +67,7 @@
       <div class="chartbox" id="barChart"></div>
     </div>
     <div class="card">
-      <div class="hd"><h2>Spend by category</h2><span class="count">last 3 months</span></div>
+      <div class="hd"><h2>Approved spend by budget line item</h2><span class="count">all time</span></div>
       <div class="donutwrap">
         <div class="chartbox" id="donut"></div>
         <div class="legend" id="donutLegend"></div>
@@ -73,13 +75,24 @@
     </div>
   </section>
 
-  <section class="card">
-    <div class="hd"><h2>Recent activity</h2><span class="count" id="actCount"></span></div>
-    <div id="activity"></div>
+  <section class="grid2">
+    <div class="card">
+      <div class="hd"><h2>Recent activity</h2><span class="count" id="actCount"></span></div>
+      <div id="activity"></div>
+    </div>
+    <div class="card">
+      <div class="hd"><h2>How this concept follows the documented process</h2></div>
+      <div class="hist">
+        <div class="h"><span class="hd2">Step 1</span><span class="hb"><b>FSOs submit payment requests</b><span class="note">Bulk document upload, then one data collection screen per document: payee, date, cost split across funding sources, description. Try it on the Payment Request page.</span></span></div>
+        <div class="h"><span class="hd2">Step 2</span><span class="hb"><b>Admin reviews with per-field verification</b><span class="note">Half-screen document, half-screen fields. Approve needs every checkbox ticked; Return sends field comments back to the FSO in red; Reject sends a message.</span></span></div>
+        <div class="h"><span class="hd2">Step 3</span><span class="hb"><b>Approved expenses go to the bookkeeper</b><span class="note">A running report of expenses to add to QuickBooks (simulated here), plus received income per project.</span></span></div>
+        <div class="h"><span class="hd2">Step 4</span><span class="hb"><b>Tracking per project by budget line item</b><span class="note">Funding overview, spenddown by line item, filterable expense lists, and PDF / Excel report generation on the Tracking page.</span></span></div>
+      </div>
+    </div>
   </section>
 </main>
 
-<footer class="foot">ExpenseFlow (Concept) &middot; Acme Field Services sample data, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
+<footer class="foot">ExpenseFlow (Concept) &middot; Fictional sample FSOs and grants, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
 
 <script src="shared/app.js"></script>
 <script>
@@ -94,118 +107,112 @@
     if (el) el.textContent = txt;
   }
 
-  var ex = A.getState().expenses;
-  var nowKey = A.monthKey(A.todayIso());
+  function render() {
+    var st = A.getState();
+    var role = st.role;
+    var scopeFso = role === 'fso' ? A.CURRENT_FSO : null;
+    var ex = st.expenses.filter(function (e) { return !scopeFso || e.fsoId === scopeFso; });
+    var nowKey = A.monthKey(A.todayIso());
 
-  /* --- KPI tiles --- */
-  var thisMonth = ex.filter(function (e) { return A.monthKey(e.date) === nowKey; });
+    setText('lede', scopeFso
+      ? 'Your organization at a glance: ' + A.fso(scopeFso).name + '. Switch roles in the top bar to see the admin and bookkeeper views.'
+      : 'All FSOs at a glance. Every number is computed live from the sample data in your browser.');
 
-  var spend = 0, spendCount = 0;
-  thisMonth.forEach(function (e) {
-    if (e.status !== 'rejected') { spend += e.amount; spendCount++; }
-  });
-  setText('kpiSpend', A.fmtMoney0(spend));
-  setText('kpiSpendSub', spendCount + ' expense' + (spendCount === 1 ? '' : 's') + ' dated this month');
-
-  var pending = 0, info = 0;
-  ex.forEach(function (e) {
-    if (e.status === 'pending') pending++;
-    if (e.status === 'info') info++;
-  });
-  setText('kpiPending', String(pending));
-  setText('kpiPendingSub', info > 0 ? info + ' more with info requested' : 'queue is otherwise clear');
-
-  var appr = 0, apprCount = 0;
-  thisMonth.forEach(function (e) {
-    if (e.status === 'approved') { appr += e.amount; apprCount++; }
-  });
-  setText('kpiApproved', A.fmtMoney0(appr));
-  setText('kpiApprovedSub', apprCount + ' expense' + (apprCount === 1 ? '' : 's') + ' approved');
-
-  var totalDays = 0, decided = 0;
-  ex.forEach(function (e) {
-    if (e.decidedAt && (e.status === 'approved' || e.status === 'rejected')) {
-      var d1 = new Date(e.createdAt), d2 = new Date(e.decidedAt);
-      totalDays += Math.max(0, (d2 - d1) / 86400000);
-      decided++;
-    }
-  });
-  if (decided > 0) {
-    var avg = totalDays / decided;
-    setText('kpiAvg', avg.toFixed(1) + ' days');
-    setText('kpiAvgSub', 'across ' + decided + ' decided expenses');
-  } else {
-    setText('kpiAvg', 'n/a');
-    setText('kpiAvgSub', 'no decided expenses yet');
-  }
-
-  /* --- monthly spend bar chart --- */
-  var months = A.lastMonths(3);
-  var bars = months.map(function (key) {
-    var v = 0;
+    /* --- KPI tiles --- */
+    var pending = 0, pendingAmt = 0, returned = 0;
     ex.forEach(function (e) {
-      if (A.monthKey(e.date) === key && e.status !== 'rejected') v += e.amount;
+      if (e.status === 'pending') { pending++; pendingAmt += e.amount; }
+      if (e.status === 'returned') returned++;
     });
-    return { label: A.monthShort(key), value: v };
-  });
-  A.renderBarChart(document.getElementById('barChart'), bars);
+    setText('kpiPending', String(pending));
+    setText('kpiPendingSub', A.fmtMoney0(pendingAmt) + ' awaiting review' + (returned ? ', ' + returned + ' returned to FSO' : ''));
 
-  /* --- category donut --- */
-  var byCat = {};
-  ex.forEach(function (e) {
-    if (e.status === 'rejected') return;
-    byCat[e.category] = (byCat[e.category] || 0) + e.amount;
-  });
-  var items = A.CATEGORIES
-    .filter(function (c) { return byCat[c] > 0; })
-    .map(function (c) { return { label: c, value: byCat[c] }; })
-    .sort(function (a, b) { return b.value - a.value; });
-  A.renderDonut(document.getElementById('donut'), document.getElementById('donutLegend'), items, 'total spend');
-
-  /* --- recent activity --- */
-  var events = [];
-  ex.forEach(function (e) {
-    var amt = A.fmtMoney(e.amount);
-    events.push({
-      ts: e.createdAt, num: e.num, kind: 'submit',
-      html: '<b>' + A.esc(e.employee) + '</b> submitted ' + amt + ' to ' + A.esc(e.merchant) + ' (' + A.esc(e.category) + ')'
+    var appr = 0, apprCount = 0;
+    ex.forEach(function (e) {
+      if (e.status === 'approved' && e.decidedAt && A.monthKey(e.decidedAt) === nowKey) { appr += e.amount; apprCount++; }
     });
-    if (e.status === 'approved' && e.decidedAt) {
-      events.push({
-        ts: e.decidedAt, num: e.num, kind: 'approved',
-        html: '<b>Finance</b> approved ' + A.esc(e.employee) + "'s " + amt + ' ' + A.esc(e.category).toLowerCase() + ' expense'
-      });
-    }
-    if (e.status === 'rejected' && e.decidedAt) {
-      events.push({
-        ts: e.decidedAt, num: e.num, kind: 'rejected',
-        html: '<b>Finance</b> rejected ' + A.esc(e.employee) + "'s " + amt + ' ' + A.esc(e.category).toLowerCase() + ' expense'
-      });
-    }
-    if (e.status === 'info') {
-      var ts = e.comments.length ? e.comments[e.comments.length - 1].ts : e.createdAt;
-      events.push({
-        ts: ts, num: e.num, kind: 'info',
-        html: '<b>Finance</b> requested info on ' + A.esc(e.employee) + "'s " + amt + ' expense'
-      });
-    }
-  });
-  events.sort(function (a, b) {
-    if (a.ts !== b.ts) return a.ts < b.ts ? 1 : -1;
-    return b.num - a.num;
-  });
-  var recent = events.slice(0, 8);
-  var host = document.getElementById('activity');
-  if (host) {
-    if (!recent.length) {
-      host.innerHTML = '<div class="empty"><div class="big">No activity yet</div>Submit an expense to see it appear here.</div>';
+    setText('kpiApproved', A.fmtMoney0(appr));
+    setText('kpiApprovedSub', apprCount + ' expense' + (apprCount === 1 ? '' : 's') + ' approved this month');
+
+    var avail = 0, fsCount = 0;
+    st.fundingSources.forEach(function (f) {
+      if (scopeFso && f.fsoId !== scopeFso) return;
+      avail += A.fsAvailable(f.id);
+      fsCount++;
+    });
+    setText('kpiAvail', A.fmtMoney0(avail));
+    setText('kpiAvailSub', 'across ' + fsCount + ' funding source' + (fsCount === 1 ? '' : 's'));
+
+    var totalDays = 0, decided = 0;
+    ex.forEach(function (e) {
+      if (e.decidedAt && (e.status === 'approved' || e.status === 'rejected')) {
+        var d1 = new Date(e.submittedAt), d2 = new Date(e.decidedAt);
+        totalDays += Math.max(0, (d2 - d1) / 86400000);
+        decided++;
+      }
+    });
+    if (decided > 0) {
+      setText('kpiAvg', (totalDays / decided).toFixed(1) + ' days');
+      setText('kpiAvgSub', 'submit to decision, ' + decided + ' decided');
     } else {
-      host.innerHTML = recent.map(function (ev) {
-        return '<div class="act"><span class="ic ' + ev.kind + '"></span><span class="t">' + ev.html + '</span><span class="d">' + A.fmtDate(ev.ts) + '</span></div>';
-      }).join('');
+      setText('kpiAvg', 'n/a');
+      setText('kpiAvgSub', 'no decided expenses yet');
     }
+
+    /* --- monthly spend bar chart --- */
+    var months = A.lastMonths(3);
+    var bars = months.map(function (key) {
+      var v = 0;
+      ex.forEach(function (e) {
+        if (A.monthKey(e.date) === key && e.status !== 'rejected') v += e.amount;
+      });
+      return { label: A.monthShort(key), value: v };
+    });
+    A.renderBarChart(document.getElementById('barChart'), bars);
+
+    /* --- spend by budget line item donut --- */
+    var byLine = {};
+    ex.forEach(function (e) {
+      if (e.status !== 'approved' || !e.coaId) return;
+      byLine[e.coaId] = (byLine[e.coaId] || 0) + e.amount;
+    });
+    var items = st.coa
+      .filter(function (c) { return byLine[c.id] > 0; })
+      .map(function (c) { return { label: c.id + ' ' + c.label, value: byLine[c.id] }; })
+      .sort(function (a, b) { return b.value - a.value; });
+    A.renderDonut(document.getElementById('donut'), document.getElementById('donutLegend'), items, 'approved spend');
+
+    /* --- recent activity from the audit history --- */
+    var events = [];
+    ex.forEach(function (e) {
+      e.history.forEach(function (h) {
+        events.push({
+          ts: h.ts, num: e.num,
+          kind: h.action === 'Approved' ? 'approved' : h.action === 'Rejected' ? 'rejected' : (h.action.indexOf('Returned') === 0 ? 'info' : 'submit'),
+          html: '<b>' + A.esc(h.actor) + '</b> ' + A.esc(h.action.toLowerCase().replace(/\bfso\b/g, 'FSO').replace(/\bquickbooks\b/g, 'QuickBooks')) + ' #' + e.num + ', ' + A.fmtMoney(e.amount) + ' to ' + A.esc(A.payeeName(e.payeeId))
+        });
+      });
+    });
+    events.sort(function (a, b) {
+      if (a.ts !== b.ts) return a.ts < b.ts ? 1 : -1;
+      return b.num - a.num;
+    });
+    var recent = events.slice(0, 8);
+    var host = document.getElementById('activity');
+    if (host) {
+      if (!recent.length) {
+        host.innerHTML = '<div class="empty"><div class="big">No activity yet</div>Submit a payment request to see it appear here.</div>';
+      } else {
+        host.innerHTML = recent.map(function (ev) {
+          return '<div class="act"><span class="ic ' + ev.kind + '"></span><span class="t">' + ev.html + '</span><span class="d">' + A.fmtDate(ev.ts) + '</span></div>';
+        }).join('');
+      }
+    }
+    setText('actCount', recent.length + ' recent events');
   }
-  setText('actCount', recent.length + ' recent events');
+
+  render();
+  document.addEventListener('rolechange', render);
 })();
 </script>
 </body>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ExpenseFlow (Concept) - Review queue</title>
+<title>ExpenseFlow (Concept) - Review</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,46 +17,32 @@
   <a class="logo" href="index.html"><span class="mark">E</span> ExpenseFlow <span class="tagc">(Concept)</span></a>
   <nav class="nav" aria-label="Main">
     <a href="index.html" data-page="dashboard">Dashboard<span class="dot"></span></a>
-    <a href="submit.html" data-page="submit">Submit<span class="dot"></span></a>
+    <a href="submit.html" data-page="submit">Payment Request<span class="dot"></span></a>
     <a href="review.html" data-page="review">Review<span class="dot"></span></a>
-    <a href="reports.html" data-page="reports">Reports<span class="dot"></span></a>
+    <a href="tracking.html" data-page="tracking">Tracking<span class="dot"></span></a>
+    <a href="bookkeeper.html" data-page="bookkeeper">Bookkeeper<span class="dot"></span></a>
   </nav>
   <div class="right">
     <div class="roleswitch" role="group" aria-label="Demo role">
-      <button type="button" data-role="employee">Employee</button>
-      <button type="button" data-role="admin">Finance Admin</button>
+      <button type="button" data-role="fso">FSO</button>
+      <button type="button" data-role="admin">Admin</button>
+      <button type="button" data-role="bookkeeper">Bookkeeper</button>
     </div>
-    <span class="who" title="Jordan Reyes (demo user)">JR</span>
+    <span class="who">JR</span>
   </div>
 </header>
 
 <main class="wrap view-in">
   <div class="pagehead">
-    <h1>Review queue</h1>
-    <p class="lede">The finance view. Pick an expense, read the thread, and approve, reject, or ask for more information. Decisions update everywhere in the app instantly.</p>
+    <h1>Review</h1>
+    <p class="lede">The admin review screen from the mock-ups: submissions grouped by FSO with the oldest and unreviewed first, the document on one side, the data collection fields on the other. Every field needs its verification checkbox ticked before Approve unlocks.</p>
   </div>
 
-  <div class="adminNote">You are browsing as Employee. In the finished product this queue is only visible to finance admins; in this demo you can still act on expenses so everything stays clickable.</div>
-
-  <div class="filters" id="filters" role="group" aria-label="Filter by status"></div>
-
-  <div class="rgrid">
-    <div class="card">
-      <div class="hd"><h2>Expenses</h2><span class="count" id="qCount"></span></div>
-      <div class="tablewrap rowsel">
-        <table>
-          <thead>
-            <tr><th>Employee</th><th>Merchant</th><th>Amount</th><th>Status</th></tr>
-          </thead>
-          <tbody id="qBody"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="card thread" id="panel"></div>
-  </div>
+  <div id="gate"></div>
+  <div id="reviewApp"></div>
 </main>
 
-<footer class="foot">ExpenseFlow (Concept) &middot; Acme Field Services sample data, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
+<footer class="foot">ExpenseFlow (Concept) &middot; Fictional sample FSOs and grants, stored only in this browser &middot; <a href="#" id="resetDemo">Reset demo data</a> &middot; <a href="legacy.html">View the original static mockup</a></footer>
 
 <script src="shared/app.js"></script>
 <script>
@@ -66,201 +52,346 @@
   if (!A) return;
   A.initChrome('review');
 
-  var FILTERS = [
-    ['all', 'All'],
-    ['pending', 'Pending'],
-    ['approved', 'Approved'],
-    ['rejected', 'Rejected'],
-    ['info', 'Info requested']
-  ];
+  var st = A.getState();
+  var gate = document.getElementById('gate');
+  var app = document.getElementById('reviewApp');
 
-  var filter = 'pending';
   var selectedId = null;
+  var editing = {};        /* field key -> true while its inline editor is open */
+  var returnMode = false;  /* true while composing return comments */
+  var rejectMode = false;
+  var returnComments = {}; /* field -> comment text while composing a return */
 
-  function allSorted() {
-    return A.getState().expenses.slice().sort(function (a, b) {
-      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-      return b.num - a.num;
+  /* ---------- gate for non-admin roles ---------- */
+
+  function renderGate() {
+    if (st.role === 'admin') { gate.innerHTML = ''; return false; }
+    gate.innerHTML = '<div class="card" style="margin-bottom:20px;"><div class="empty"><div class="big">The review queue is an admin tool</div>' +
+      'You are browsing as ' + A.esc(A.ROLE_META[st.role].label) + '. Switch to the Admin role to review submissions as Alex Morgan.<br><br>' +
+      '<button type="button" class="btn primary" id="switchAdmin">Switch to the Admin role</button></div></div>';
+    document.getElementById('switchAdmin').addEventListener('click', function () {
+      st.role = 'admin';
+      A.save();
+      document.body.setAttribute('data-role', 'admin');
+      var btns = document.querySelectorAll('.roleswitch button');
+      for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i].getAttribute('data-role') === 'admin');
+      renderAll();
     });
+    return true;
   }
 
-  function filtered() {
-    var ex = allSorted();
-    if (filter === 'all') return ex;
-    return ex.filter(function (e) { return e.status === filter; });
+  /* ---------- queue ---------- */
+
+  function reviewed(e) {
+    var any = false;
+    Object.keys(e.verify || {}).forEach(function (k) { if (e.verify[k]) any = true; });
+    return any;
   }
 
-  /* keep the selection valid for the current filter */
-  function ensureSelection() {
-    var list = filtered();
-    var stillThere = list.some(function (e) { return e.id === selectedId; });
-    if (!stillThere) selectedId = list.length ? list[0].id : null;
+  function queue() {
+    return st.expenses.filter(function (e) { return e.status === 'pending'; });
   }
 
-  /* --- filter pills --- */
-  function renderFilters() {
-    var host = document.getElementById('filters');
-    if (!host) return;
-    var counts = { all: 0, pending: 0, approved: 0, rejected: 0, info: 0 };
-    A.getState().expenses.forEach(function (e) {
-      counts.all++;
-      if (counts[e.status] != null) counts[e.status]++;
-    });
-    host.innerHTML = FILTERS.map(function (f) {
-      return '<button type="button" class="fbtn' + (filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' +
-        f[1] + '<span class="c">' + counts[f[0]] + '</span></button>';
-    }).join('');
-    var btns = host.querySelectorAll('.fbtn');
-    for (var i = 0; i < btns.length; i++) {
-      (function (b) {
-        b.addEventListener('click', function () {
-          filter = b.getAttribute('data-f');
-          ensureSelection();
-          renderAll();
-        });
-      })(btns[i]);
+  function verifyFieldsFor(e) {
+    var fields = A.VERIFY_FIELDS.slice();
+    var p = A.payee(e.payeeId);
+    if (p && p.isNew && !p.financeDocsReceived) {
+      fields.push({ key: 'newpayee', label: 'New payee: finance documents received' });
     }
+    return fields;
   }
 
-  /* --- queue table --- */
-  function renderTable() {
-    var body = document.getElementById('qBody');
-    var count = document.getElementById('qCount');
-    if (!body) return;
-    var list = filtered();
-    if (count) count.textContent = list.length + ' shown';
-
-    if (!list.length) {
-      var msg = filter === 'pending'
-        ? 'Every pending expense has been processed. Nice work.'
-        : 'No expenses match this filter.';
-      body.innerHTML = '<tr><td colspan="4"><div class="empty"><div class="big">Nothing here</div>' + msg + '</div></td></tr>';
-      return;
-    }
-
-    body.innerHTML = list.map(function (e) {
-      var st = A.STATUS_META[e.status] || A.STATUS_META.pending;
-      return '<tr data-id="' + A.esc(e.id) + '" tabindex="0"' + (e.id === selectedId ? ' class="sel"' : '') + '>' +
-        '<td class="who2">' + A.esc(e.employee) + '<span class="p">' + A.fmtDate(e.date) + '</span></td>' +
-        '<td class="who2">' + A.esc(e.merchant) + '<span class="p">' + A.esc(e.category) + '</span></td>' +
-        '<td class="amtc">' + A.fmtMoney(e.amount) + '</td>' +
-        '<td><span class="st ' + st.cls + '">' + st.label + '</span></td></tr>';
-    }).join('');
-
-    var rows = body.querySelectorAll('tr[data-id]');
-    for (var i = 0; i < rows.length; i++) {
-      (function (r) {
-        function pick() {
-          selectedId = r.getAttribute('data-id');
-          renderTable();
-          renderPanel();
-        }
-        r.addEventListener('click', pick);
-        r.addEventListener('keydown', function (ev) {
-          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(); }
-        });
-      })(rows[i]);
-    }
+  function allVerified(e) {
+    var ok = true;
+    verifyFieldsFor(e).forEach(function (f) { if (!e.verify[f.key]) ok = false; });
+    if (!e.coaId) ok = false;
+    return ok;
   }
 
-  /* --- detail panel --- */
-  function renderPanel() {
-    var panel = document.getElementById('panel');
-    if (!panel) return;
-    var e = selectedId ? A.findExpense(selectedId) : null;
-
-    if (!e) {
-      panel.innerHTML = '<div class="empty" style="padding:60px 24px;"><div class="big">No expense selected</div>Pick an expense from the queue to review it.</div>';
-      return;
-    }
-
-    var st = A.STATUS_META[e.status] || A.STATUS_META.pending;
-    var h = '';
-
-    h += '<div class="hd"><h2>Expense #' + e.num + '</h2><span class="count"><span class="st ' + st.cls + '">' + st.label + '</span></span></div>';
-
-    h += '<div class="exp">' +
-      '<div class="big">' + A.fmtMoney(e.amount) + '</div>' +
-      '<div class="meta"><b>' + A.esc(e.employee) + '</b> &middot; ' + A.esc(e.category) + ' &middot; ' + A.esc(e.merchant) + ' &middot; ' + A.fmtDate(e.date) + '</div>' +
-      (e.description ? '<div class="desc">' + A.esc(e.description) + '</div>' : '') +
-      (e.receipt
-        ? '<span class="chip"><span class="x">PDF</span>' + A.esc(e.receipt) + '</span>'
-        : '<div class="desc" style="border-top:0;padding-top:4px;">No receipt attached.</div>') +
-      '</div>';
-
-    /* comment thread */
-    h += '<div class="msgs">';
-    if (!e.comments.length) {
-      h += '<div class="none">No comments yet. Any note you add below stays on this expense.</div>';
-    } else {
-      e.comments.forEach(function (c) {
-        var side = c.role === 'admin' ? 'admin' : 'user';
-        var who = c.role === 'admin' ? 'You (Finance Admin)' : c.author;
-        h += '<div class="msg ' + side + '"><div class="bub">' + A.esc(c.text) + '</div>' +
-          '<div class="lbl">' + A.esc(who) + ' &middot; ' + A.fmtDate(c.ts) + '</div></div>';
-      });
-    }
-    h += '</div>';
-
-    var open = (e.status === 'pending' || e.status === 'info');
-
-    if (open) {
-      h += '<div class="replybar">' +
-        '<textarea class="inp" id="cmtBox" rows="2" placeholder="Add a comment (required to reject or request info)..."></textarea>' +
-        '<div class="err" id="cmtErr"></div></div>';
-      h += '<div class="actbar">' +
-        '<button type="button" class="abtn ok" id="btnApprove">Approve</button>' +
-        '<button type="button" class="abtn q" id="btnInfo">Request info</button>' +
-        '<button type="button" class="abtn no" id="btnReject">Reject</button></div>';
-    } else {
-      var word = e.status === 'approved' ? 'approved' : 'rejected';
-      h += '<div class="decided">This expense was <b>' + word + '</b> on ' + A.fmtDate(e.decidedAt) + '. Decisions are final in this demo; use Reset demo data in the footer to start over.</div>';
-    }
-
-    panel.innerHTML = h;
-
-    if (open) {
-      var box = document.getElementById('cmtBox');
-      var err = document.getElementById('cmtErr');
-
-      function act(action, needComment, doneWord) {
-        var comment = box ? box.value.trim() : '';
-        if (needComment && !comment) {
-          if (err) {
-            err.textContent = 'Add a comment explaining the decision first.';
-            err.classList.add('show');
-          }
-          if (box) { box.classList.add('bad'); box.focus(); }
-          return;
-        }
-        A.actOn(e.id, action, comment);
-        renderAll();
-        A.showToast('Expense #' + e.num + ' ' + doneWord + '.');
-      }
-
-      if (box) {
-        box.addEventListener('input', function () {
-          box.classList.remove('bad');
-          if (err) err.classList.remove('show');
-        });
-      }
-      var bA = document.getElementById('btnApprove');
-      var bI = document.getElementById('btnInfo');
-      var bR = document.getElementById('btnReject');
-      if (bA) bA.addEventListener('click', function () { act('approved', false, 'approved'); });
-      if (bI) bI.addEventListener('click', function () { act('info', true, 'marked as info requested'); });
-      if (bR) bR.addEventListener('click', function () { act('rejected', true, 'rejected'); });
-    }
-  }
+  /* ---------- rendering ---------- */
 
   function renderAll() {
-    ensureSelection();
-    renderFilters();
-    renderTable();
-    renderPanel();
+    st = A.getState();
+    if (renderGate()) { app.innerHTML = ''; return; }
+
+    var q = queue();
+    if (!q.length) {
+      app.innerHTML = '<div class="card"><div class="empty"><div class="big">The review queue is clear</div>' +
+        'Submit a payment request from the FSO role and it will land here as Pending approval.</div></div>';
+      return;
+    }
+
+    /* group by FSO, oldest first, unreviewed first */
+    var groups = {};
+    q.forEach(function (e) {
+      (groups[e.fsoId] = groups[e.fsoId] || []).push(e);
+    });
+    Object.keys(groups).forEach(function (k) {
+      groups[k].sort(function (a, b) {
+        var ra = reviewed(a) ? 1 : 0, rb = reviewed(b) ? 1 : 0;
+        if (ra !== rb) return ra - rb;
+        if (a.submittedAt !== b.submittedAt) return a.submittedAt < b.submittedAt ? -1 : 1;
+        return a.num - b.num;
+      });
+    });
+
+    if (!selectedId || !A.findExpense(selectedId) || A.findExpense(selectedId).status !== 'pending') {
+      selectedId = null;
+      st.fsos.some(function (f) {
+        if (groups[f.id] && groups[f.id].length) { selectedId = groups[f.id][0].id; return true; }
+        return false;
+      });
+      editing = {}; returnMode = false; rejectMode = false; returnComments = {};
+    }
+
+    var rail = '';
+    st.fsos.forEach(function (f) {
+      var list = groups[f.id];
+      if (!list || !list.length) return;
+      rail += '<div class="rgroup">' + A.esc(f.name) + '</div>';
+      list.forEach(function (e) {
+        rail += '<button type="button" class="ritem' + (e.id === selectedId ? ' sel' : '') + '" data-sel="' + e.id + '">' +
+          '<span class="t1">#' + e.num + ' &middot; ' + A.fmtMoney(e.amount) +
+          '<span class="dotst ' + (reviewed(e) ? 'done' : 'todo') + '" title="' + (reviewed(e) ? 'Review started' : 'Unreviewed') + '"></span></span>' +
+          '<span class="t2">' + A.esc(A.payeeName(e.payeeId)) + ' &middot; ' + A.fmtDate(e.submittedAt) + (reviewed(e) ? '' : ' &middot; unreviewed') + '</span></button>';
+      });
+    });
+
+    var e = A.findExpense(selectedId);
+    app.innerHTML = '<div class="workgrid">' +
+      '<div class="card rail"><div class="railhd">Submissions by FSO (' + q.length + ')</div>' +
+        '<div class="railbody">' + rail + '</div>' +
+        '<div class="railft"><button type="button" class="btn sm" id="saveProg" style="width:100%;">Save progress</button></div></div>' +
+      '<div class="card doccard"><div class="railhd">Document</div><div id="docPrev"></div><div class="note" id="docNote"></div></div>' +
+      '<div class="card"><div class="railhd">Data collection fields</div><div class="form" id="fields"></div><div class="wizbar" id="actions"></div></div>' +
+      '</div>';
+
+    app.querySelectorAll('[data-sel]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        selectedId = b.getAttribute('data-sel');
+        editing = {}; returnMode = false; rejectMode = false; returnComments = {};
+        renderAll();
+      });
+    });
+    document.getElementById('saveProg').addEventListener('click', function () {
+      A.save();
+      A.showToast('Progress saved. Checkbox state stays with each expense.');
+    });
+
+    if (e) renderDetail(e);
+  }
+
+  function renderDetail(e) {
+    A.renderDocPreview(document.getElementById('docPrev'), e);
+    var note = document.getElementById('docNote');
+    var bits = [];
+    if (A.daysOld(e.date) > 92) bits.push('Warning: date is older than three months and may not be eligible for payment.');
+    if (e.months && e.months.length) bits.push('FSO broke this expense out over ' + e.months.length + ' month' + (e.months.length === 1 ? '' : 's') + '.');
+    var fs0 = e.allocations && e.allocations[0] ? A.fundingSource(e.allocations[0].fsId) : null;
+    if (fs0) bits.push('Project: ' + A.project(fs0.projectId).name + '.');
+    note.textContent = bits.join(' ');
+
+    renderFields(e);
+    renderActions(e);
+  }
+
+  function fieldValue(e, key) {
+    if (key === 'payee') {
+      var p = A.payee(e.payeeId);
+      return A.payeeName(e.payeeId) + (p && p.isNew ? ' (new payee)' : '');
+    }
+    if (key === 'date') return A.fmtDate(e.date);
+    if (key === 'cost') {
+      var parts = (e.allocations || []).map(function (al) {
+        var fs = A.fundingSource(al.fsId);
+        return A.fmtMoney(al.amount) + ' from ' + (fs ? fs.name + ' ' + fs.year : 'unknown source');
+      });
+      return A.fmtMoney(e.amount) + ' (' + parts.join(' + ') + ')';
+    }
+    if (key === 'description') return e.description || '(none)';
+    if (key === 'coa') {
+      var c = A.coaItem(e.coaId);
+      return c ? c.id + ' ' + c.label : 'Not assigned yet';
+    }
+    if (key === 'newpayee') return 'Confirm before approval';
+    return '';
+  }
+
+  function renderFields(e) {
+    var host = document.getElementById('fields');
+    var fields = verifyFieldsFor(e);
+
+    var html = fields.map(function (f) {
+      var checked = !!e.verify[f.key];
+      var editable = ['payee', 'date', 'description', 'coa'].indexOf(f.key) !== -1;
+      var editorHtml = '';
+      if (editing[f.key]) {
+        if (f.key === 'date') {
+          editorHtml = '<input class="inp" type="date" id="ed_date" value="' + e.date + '">';
+        } else if (f.key === 'description') {
+          editorHtml = '<textarea class="inp" id="ed_description" rows="2">' + A.esc(e.description) + '</textarea>';
+        } else if (f.key === 'payee') {
+          editorHtml = '<select class="inp" id="ed_payee">' + A.payeesFor(e.fsoId).map(function (p) {
+            return '<option value="' + p.id + '"' + (p.id === e.payeeId ? ' selected' : '') + '>' + A.esc(p.name) + '</option>';
+          }).join('') + '</select>';
+        } else if (f.key === 'coa') {
+          editorHtml = '<select class="inp" id="ed_coa"><option value="">Assign a chart of accounts option...</option>' +
+            st.coa.map(function (c) {
+              return '<option value="' + c.id + '"' + (c.id === e.coaId ? ' selected' : '') + '>' + c.id + ' ' + A.esc(c.label) + '</option>';
+            }).join('') + '</select>';
+        }
+        editorHtml = '<div class="vedit">' + editorHtml +
+          '<input class="inp" id="edc_' + f.key + '" placeholder="Add a comment about this edit (optional)">' +
+          '<div style="display:flex;gap:8px;"><button type="button" class="btn primary sm" data-edsave="' + f.key + '">Save edit</button>' +
+          '<button type="button" class="btn sm" data-edcancel="' + f.key + '">Cancel</button></div></div>';
+      }
+
+      var returnBox = '';
+      if (returnMode && !checked) {
+        returnBox = '<div class="vcomment"><input class="inp" data-retc="' + f.key + '" placeholder="Comment for the FSO on this field" value="' + A.esc(returnComments[f.key] || '') + '"></div>';
+      }
+
+      var coaMissing = f.key === 'coa' && !e.coaId
+        ? '<div class="vnote">Assign a COA (use Edit) before this field can be verified.</div>' : '';
+
+      return '<div class="vrow' + (checked ? ' checked' : '') + '">' +
+        '<div class="vtop">' +
+        '<input type="checkbox" data-vf="' + f.key + '"' + (checked ? ' checked' : '') + (f.key === 'coa' && !e.coaId ? ' disabled' : '') + ' aria-label="Verify ' + A.esc(f.label) + '">' +
+        '<div style="flex:1;min-width:0;"><div class="vlbl">' + A.esc(f.label) + '</div>' +
+        '<div class="vval">' + A.esc(fieldValue(e, f.key)) + '</div>' + coaMissing + '</div>' +
+        (editable ? '<div class="vact"><button type="button" class="vbtn" data-edit="' + f.key + '">' + (editing[f.key] ? 'Close' : 'Edit') + '</button></div>' : '') +
+        '</div>' + editorHtml + returnBox + '</div>';
+    }).join('');
+
+    if (e.comments) {
+      html += '<div class="vrow"><div class="vtop"><div style="flex:1;"><div class="vlbl">FSO additional comments</div><div class="vval">' + A.esc(e.comments) + '</div></div></div></div>';
+    }
+
+    html += '<div class="field" style="margin-top:4px;"><label for="revComment">Additional comments (optional)</label>' +
+      '<textarea class="inp" id="revComment" rows="2" placeholder="Notes kept on the status trail"></textarea></div>';
+
+    html += '<div class="vlbl" style="margin:14px 0 6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;">Status trail</div>' +
+      '<div class="hist" style="border:1px solid #e2e8f0;border-radius:10px;">' +
+      e.history.map(function (h) {
+        return '<div class="h"><span class="hd2">' + A.fmtDate(h.ts) + '</span><span class="hb"><b>' + A.esc(h.actor) + '</b> ' + A.esc(h.action) +
+          (h.note ? '<span class="note">' + A.esc(h.note) + '</span>' : '') + '</span></div>';
+      }).join('') + '</div>';
+
+    host.innerHTML = html;
+
+    host.querySelectorAll('[data-vf]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        e.verify[cb.getAttribute('data-vf')] = cb.checked;
+        A.save();
+        renderAll();
+      });
+    });
+    host.querySelectorAll('[data-edit]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-edit');
+        editing[k] = !editing[k];
+        renderDetail(e);
+      });
+    });
+    host.querySelectorAll('[data-edsave]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-edsave');
+        var val = '';
+        var el = document.getElementById('ed_' + k);
+        if (el) val = el.value;
+        if (k === 'coa' && !val) { A.showToast('Pick a chart of accounts option first.'); return; }
+        var cEl = document.getElementById('edc_' + k);
+        A.reviewEdit(e.id, k, val, cEl && cEl.value.trim() ? cEl.value.trim() : null);
+        editing[k] = false;
+        A.showToast('Field updated. The edit is on the status trail.');
+        renderAll();
+      });
+    });
+    host.querySelectorAll('[data-edcancel]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        editing[b.getAttribute('data-edcancel')] = false;
+        renderDetail(e);
+      });
+    });
+    host.querySelectorAll('[data-retc]').forEach(function (inp) {
+      inp.addEventListener('input', function () {
+        returnComments[inp.getAttribute('data-retc')] = inp.value;
+      });
+    });
+  }
+
+  function renderActions(e) {
+    var host = document.getElementById('actions');
+    var ok = allVerified(e);
+    var unchecked = verifyFieldsFor(e).filter(function (f) { return !e.verify[f.key]; });
+
+    if (rejectMode) {
+      host.innerHTML = '<div style="width:100%;">' +
+        '<div class="field"><label for="rejMsg">Message to the FSO</label>' +
+        '<textarea class="inp" id="rejMsg" rows="2" placeholder="Why is this expense being rejected?"></textarea></div>' +
+        '<div style="display:flex;gap:8px;"><button type="button" class="btn no" id="rejGo">Send rejection</button>' +
+        '<button type="button" class="btn" id="rejCancel">Cancel</button></div></div>';
+      document.getElementById('rejGo').addEventListener('click', function () {
+        var msg = document.getElementById('rejMsg').value.trim();
+        if (!msg) { A.showToast('A rejection needs a message to the FSO.'); return; }
+        A.reject(e.id, msg);
+        rejectMode = false;
+        A.showToast('#' + e.num + ' rejected. Email notification sent (simulated).');
+        renderAll();
+      });
+      document.getElementById('rejCancel').addEventListener('click', function () { rejectMode = false; renderAll(); });
+      return;
+    }
+
+    if (returnMode) {
+      host.innerHTML = '<div style="width:100%;">' +
+        '<div class="wbanner warn" style="margin-top:0;">Add a comment under at least one unchecked field above, then send. The FSO sees these comments in red.</div>' +
+        '<div style="display:flex;gap:8px;"><button type="button" class="btn warn" id="retGo">Send back to the FSO</button>' +
+        '<button type="button" class="btn" id="retCancel">Cancel</button></div></div>';
+      document.getElementById('retGo').addEventListener('click', function () {
+        var fc = {};
+        var any = false;
+        unchecked.forEach(function (f) {
+          var t = String(returnComments[f.key] || '').trim();
+          if (t) { fc[f.key] = t; any = true; }
+        });
+        if (!any) { A.showToast('Return needs at least one unchecked field with a comment.'); return; }
+        A.returnToFso(e.id, fc);
+        returnMode = false; returnComments = {};
+        A.showToast('#' + e.num + ' returned to the FSO. Email notification sent (simulated).');
+        renderAll();
+      });
+      document.getElementById('retCancel').addEventListener('click', function () { returnMode = false; renderAll(); });
+      return;
+    }
+
+    host.innerHTML =
+      '<button type="button" class="btn ok" id="btnApprove" ' + (ok ? '' : 'disabled') + ' title="' + (ok ? 'Approve this expense' : 'Requires every verification checkbox ticked and a COA assigned') + '">Approve</button>' +
+      '<button type="button" class="btn warn" id="btnReturn" ' + (unchecked.length ? '' : 'disabled') + ' title="Requires at least one unchecked field with a comment">Return</button>' +
+      '<button type="button" class="btn no" id="btnReject">Reject</button>' +
+      '<span class="hint grow" style="text-align:right;">' + (ok ? 'All fields verified.' : unchecked.length + ' field' + (unchecked.length === 1 ? '' : 's') + ' left to verify') + '</span>';
+
+    document.getElementById('btnApprove').addEventListener('click', function () {
+      var rc = document.getElementById('revComment');
+      if (rc && rc.value.trim()) A.pushHist(e, 'Alex Morgan', 'admin', 'Comment', rc.value.trim());
+      A.approve(e.id);
+      A.showToast('#' + e.num + ' approved and sent to the bookkeeper report.');
+      renderAll();
+    });
+    document.getElementById('btnReturn').addEventListener('click', function () {
+      returnMode = true;
+      renderAll();
+      var e2 = A.findExpense(selectedId);
+      if (e2) renderDetail(e2);
+    });
+    document.getElementById('btnReject').addEventListener('click', function () {
+      rejectMode = true;
+      renderDetail(e);
+    });
   }
 
   renderAll();
+  document.addEventListener('rolechange', renderAll);
 })();
 </script>
 </body>
