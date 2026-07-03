@@ -35,7 +35,7 @@
 <main class="wrap view-in">
   <div class="pagehead">
     <h1>Bookkeeper</h1>
-    <p class="lede">The last two boxes of the process map: approved expenses arrive here as a report to be added to QuickBooks, and received income is recorded per project. The QuickBooks entries and the Google Drive folder below are simulated and labeled as such; the real integration is scoped collaboratively in the proposal.</p>
+    <p class="lede">The last two boxes of the process map: approved expenses arrive here as a report to be added to QuickBooks, and received income is recorded per project. The QuickBooks entries and the Google Drive folder below are simulated and labeled as such.</p>
   </div>
 
   <div id="gate"></div>
@@ -101,7 +101,7 @@
       (queued.length ? '<div class="rep" style="border-top:1px solid #e2e8f0;">' +
         '<span class="grow"></span>' +
         '<button type="button" class="expbtn" id="qbXls"><span class="ic">XLS</span>Export this report for QuickBooks entry</button></div>' : '') +
-      '<div class="note">In this concept, QuickBooks entries are simulated status changes. The proposal scopes the real sync (QuickBooks Online API or Desktop import, whichever you run) as a collaborative, verify-first milestone.</div></div>';
+      '<div class="note">In this concept, QuickBooks entries are simulated status changes. The real build posts approved expenses through QuickBooks (Online API or Desktop import, whichever you run), verified with test data before go-live.</div></div>';
 
     html += '<div class="card" style="margin-bottom:20px;">' +
       '<div class="hd"><h2>Already in QuickBooks (simulated)</h2><span class="count">' + synced.length + ' recorded</span></div>' +
